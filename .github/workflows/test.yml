@@ -1,0 +1,68 @@
+name: Test and Notify
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install CI dependencies
+        run: pip install -r requirements-ci.txt
+
+      - name: Verify src/ imports without torch or transformers
+        run: |
+          python - <<'PY'
+          import sys
+          import src.router, src.local_llm, src.local_vision, src.remote_llm, src.meme_render
+          leaked = [m for m in ("torch", "transformers", "spaces") if m in sys.modules]
+          assert not leaked, f"lazy-import constraint violated: {leaked}"
+          print("OK: src/ imports with zero ML dependencies loaded")
+          PY
+
+      - name: Run tests
+        run: pytest -q --cov=src --cov-report=term-missing --cov-fail-under=80
+
+      - name: Notify Discord
+        if: always()
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          STATUS: ${{ job.status }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            echo "No DISCORD_WEBHOOK configured, skipping notification."
+            exit 0
+          fi
+          # The payload is built in Python rather than inlined into `curl -d` so a
+          # commit message containing a quote or newline cannot break the step.
+          python - <<'PY'
+          import json, os, urllib.request
+
+          status = os.environ["STATUS"]
+          icon = {"success": "✅", "failure": "❌"}.get(status, "⚠️")
+          payload = {
+              "content": (
+                  f"{icon} **MemeForge CI: {status}**\n"
+                  f"Commit `{os.environ['GITHUB_SHA'][:7]}` on "
+                  f"`{os.environ['GITHUB_REF_NAME']}` by {os.environ['GITHUB_ACTOR']}\n"
+                  f"https://github.com/{os.environ['GITHUB_REPOSITORY']}"
+                  f"/actions/runs/{os.environ['GITHUB_RUN_ID']}"
+              )
+          }
+          request = urllib.request.Request(
+              os.environ["WEBHOOK"],
+              data=json.dumps(payload).encode(),
+              headers={"Content-Type": "application/json"},
+          )
+          with urllib.request.urlopen(request) as response:
+              print("Discord responded", response.status)
+          PY
