@@ -8,6 +8,8 @@ sdk_version: 6.26.0
 python_version: '3.12'
 app_file: app.py
 hf_oauth: true
+hf_oauth_scopes:
+  - inference-api
 pinned: false
 short_description: Meme captions from any image, via remote or local LLM.
 ---
