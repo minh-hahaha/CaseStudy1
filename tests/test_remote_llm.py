@@ -8,18 +8,24 @@ from src.remote_llm import RemoteCaptionError, candidate_tokens
 
 
 class _FakeMessage:
-    def __init__(self, content):
+    def __init__(self, content, reasoning=None):
         self.content = content
+        self.reasoning = reasoning
 
 
 class _FakeChoice:
-    def __init__(self, content):
-        self.message = _FakeMessage(content)
+    def __init__(self, content, reasoning=None, finish_reason="stop"):
+        self.message = _FakeMessage(content, reasoning)
+        self.finish_reason = finish_reason
 
 
 class _FakeResponse:
-    def __init__(self, content):
-        self.choices = [_FakeChoice(content)]
+    """A behaviour may return a plain string, or a _FakeChoice for full control."""
+
+    def __init__(self, outcome):
+        self.choices = [
+            outcome if isinstance(outcome, _FakeChoice) else _FakeChoice(outcome)
+        ]
 
 
 def _client_factory(behaviour, recorder):
@@ -160,8 +166,41 @@ def test_timeout_becomes_a_remote_caption_error(space_token, fake_client):
 def test_empty_response_becomes_a_remote_caption_error(space_token, fake_client):
     fake_client(lambda token: "")
 
-    with pytest.raises(RemoteCaptionError, match="empty response"):
+    with pytest.raises(RemoteCaptionError, match="no text"):
         remote_llm.generate_captions("a cat", "Dad Joke")
+
+
+def test_reasoning_channel_is_used_when_content_is_empty(space_token, fake_client):
+    """The real failure on the Space: gpt-oss left content empty."""
+    fake_client(
+        lambda token: _FakeChoice(
+            content="", reasoning='{"captions": ["found in reasoning"]}'
+        )
+    )
+
+    assert remote_llm.generate_captions("a cat", "Dad Joke") == ["found in reasoning"]
+
+
+def test_truncation_is_reported_via_finish_reason(space_token, fake_client):
+    fake_client(
+        lambda token: _FakeChoice(content="", reasoning="", finish_reason="length")
+    )
+
+    with pytest.raises(RemoteCaptionError, match="finish_reason=length"):
+        remote_llm.generate_captions("a cat", "Dad Joke")
+
+
+def test_token_budget_leaves_room_for_a_reasoning_model():
+    # 400 was too small: gpt-oss-20b spent it all reasoning and returned nothing.
+    assert remote_llm.MAX_RESPONSE_TOKENS >= 1000
+
+
+def test_budget_is_passed_to_the_provider(space_token, fake_client):
+    recorder = fake_client(lambda token: '{"captions": ["x"]}')
+
+    remote_llm.generate_captions("a cat", "Dad Joke")
+
+    assert recorder["max_tokens"] == remote_llm.MAX_RESPONSE_TOKENS
 
 
 def test_unparseable_response_becomes_a_remote_caption_error(space_token, fake_client):

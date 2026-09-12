@@ -10,7 +10,10 @@ from .styles import build_messages
 
 DEFAULT_MODEL = "openai/gpt-oss-20b"
 REQUEST_TIMEOUT_SECONDS = 25
-MAX_RESPONSE_TOKENS = 400
+# gpt-oss-20b is a reasoning model: it emits a separate reasoning channel
+# before its answer. At 400 tokens it spent the whole budget reasoning and
+# returned empty content, so the budget has to cover reasoning + answer.
+MAX_RESPONSE_TOKENS = 1500
 MAX_REASON_CHARS = 220
 
 
@@ -38,6 +41,27 @@ def candidate_tokens(token: str | None = None) -> list[str]:
     return ordered
 
 
+def _extract_reply(choice) -> str:
+    """Return the assistant text, tolerating reasoning-model response shapes.
+
+    A reasoning model can leave ``content`` empty — either because the token
+    budget ran out mid-reasoning, or because the provider puts the usable text
+    in ``reasoning``. Prefer ``content``, fall back to ``reasoning``, and report
+    ``finish_reason`` when both are empty so a truncation is diagnosable instead
+    of looking like an outage.
+    """
+    message = choice.message
+    for field in ("content", "reasoning"):
+        text = getattr(message, field, None)
+        if text and text.strip():
+            return text
+
+    finish = getattr(choice, "finish_reason", None) or "unknown"
+    raise RemoteCaptionError(
+        f"Remote model returned no text (finish_reason={finish})."
+    )
+
+
 def _request_captions(
     api_key: str,
     scene: str,
@@ -58,10 +82,7 @@ def _request_captions(
         max_tokens=MAX_RESPONSE_TOKENS,
         temperature=temperature,
     )
-    raw = response.choices[0].message.content
-    if not raw:
-        raise RemoteCaptionError("Remote model returned an empty response.")
-    return raw
+    return _extract_reply(response.choices[0])
 
 
 def _short(reason: str) -> str:
