@@ -50,3 +50,11 @@ def test_renders_both_top_and_bottom():
     both = render_meme(_blank(), top_text="alpha", bottom_text="omega")
 
     assert top_only.tobytes() != both.tobytes()
+
+
+def test_font_honours_the_requested_size():
+    # Guards the pillow>=10.1 floor: older versions ignore the size argument
+    # and silently render unreadably small text.
+    from src.meme_render import _load_font
+
+    assert _load_font(64).getbbox("WWW") != _load_font(12).getbbox("WWW")

@@ -10,5 +10,8 @@ spaces
 transformers>=4.51
 torch
 accelerate
-pillow
+# >=10.1 is the first release where ImageFont.load_default() honours a
+# size argument. Older versions silently render unreadably small text
+# instead of raising, so this floor prevents a quiet regression.
+pillow>=10.1
 huggingface_hub

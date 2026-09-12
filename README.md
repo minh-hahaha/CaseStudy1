@@ -9,7 +9,7 @@ python_version: '3.12'
 app_file: app.py
 hf_oauth: true
 pinned: false
-short_description: Turn any image into class-ready meme captions, remote or local.
+short_description: Meme captions from any image, via remote or local LLM.
 ---
 
 # 🔥 MemeForge

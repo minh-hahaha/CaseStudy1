@@ -2,5 +2,5 @@
 # and every model call is monkeypatched. Keeps CI runs to seconds, not minutes.
 pytest
 pytest-cov
-pillow
+pillow>=10.1
 huggingface_hub
