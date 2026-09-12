@@ -1,0 +1,6 @@
+# CI-only deps. No torch, no transformers, no gradio: tests import `src/` only,
+# and every model call is monkeypatched. Keeps CI runs to seconds, not minutes.
+pytest
+pytest-cov
+pillow
+huggingface_hub

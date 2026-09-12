@@ -1,0 +1,14 @@
+# Runtime deps for the Hugging Face Space.
+# gradio is pinned to exactly the `sdk_version` in README.md: the [oauth] extra
+# is required by gr.LoginButton (itsdangerous + authlib), and an unpinned gradio
+# here would drift from sdk_version, which is the classic blank-Space bug.
+gradio[oauth]==6.26.0
+spaces
+# >=4.51 is the first release with Qwen3 support. No upper bound: local_vision
+# uses the processor/model API rather than the `image-to-text` pipeline task,
+# which Transformers v5 removed.
+transformers>=4.51
+torch
+accelerate
+pillow
+huggingface_hub
