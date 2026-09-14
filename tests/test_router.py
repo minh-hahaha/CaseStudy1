@@ -47,13 +47,6 @@ def test_remote_failure_falls_over_to_local(monkeypatch):
     assert "429" in result["note"]
 
 
-def test_simulated_outage_triggers_failover():
-    result = router.make_captions("a cat", "Dad Joke", simulate_outage=True)
-
-    assert result["source"] == router.LOCAL_LABEL
-    assert "Simulated outage" in result["note"]
-
-
 def test_remote_only_mode_does_not_fail_over(monkeypatch):
     monkeypatch.setattr(remote_llm, "generate_captions", _raise_remote("503 down"))
 

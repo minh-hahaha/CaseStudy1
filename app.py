@@ -17,6 +17,7 @@ from src.meme_render import render_meme
 from src.styles import DEFAULT_STYLE, STYLES
 
 PLACEMENTS = ["Top", "Bottom"]
+CAPTION_TEMPERATURE = 0.9
 UPLOAD_PROMPT = "Upload an image first."
 
 fancy_css = """
@@ -85,9 +86,7 @@ def run_factory(
     style,
     topic,
     n,
-    temperature,
     mode,
-    simulate_outage,
     hf_token: gr.OAuthToken | None = None,
 ):
     """Describe the image, route the caption request, and fill the picker."""
@@ -99,10 +98,9 @@ def run_factory(
         scene=scene,
         style=style,
         n=int(n),
-        temperature=float(temperature),
+        temperature=CAPTION_TEMPERATURE,
         topic=topic,
         mode=mode,
-        simulate_outage=simulate_outage,
         token=_token_value(hf_token),
     )
 
@@ -145,7 +143,7 @@ def run_bakeoff(image, style, topic, hf_token: gr.OAuthToken | None = None):
     try:
         remote_out = _as_bullets(
             remote_llm.generate_captions(
-                scene, style, 3, 0.9, topic=topic, token=_token_value(hf_token)
+                scene, style, 3, CAPTION_TEMPERATURE, topic=topic, token=_token_value(hf_token)
             )
         )
     except remote_llm.RemoteCaptionError as exc:
@@ -155,7 +153,7 @@ def run_bakeoff(image, style, topic, hf_token: gr.OAuthToken | None = None):
     local_start = time.perf_counter()
     try:
         local_out = _as_bullets(
-            local_llm.generate_captions(scene, style, 3, 0.9, topic)
+            local_llm.generate_captions(scene, style, 3, CAPTION_TEMPERATURE, topic)
         )
     except local_llm.LocalCaptionError as exc:
         local_out = f"**Failed:** {exc}"
@@ -204,12 +202,8 @@ with gr.Blocks(title="Meme Creator") as demo:
                 )
                 with gr.Accordion("Generation settings", open=False):
                     n_in = gr.Slider(1, 6, value=3, step=1, label="Captions")
-                    temp_in = gr.Slider(0.2, 1.4, value=0.9, step=0.1, label="Spice")
                     mode_in = gr.Radio(
                         router.MODES, value=router.AUTO_MODE, label="Routing"
-                    )
-                    outage_in = gr.Checkbox(
-                        label="Simulate remote API outage (failover demo)"
                     )
                 go = gr.Button("Generate captions", variant="primary")
             with gr.Column(scale=1):
@@ -224,7 +218,7 @@ with gr.Blocks(title="Meme Creator") as demo:
 
         go.click(
             run_factory,
-            [image_in, style_in, topic_in, n_in, temp_in, mode_in, outage_in],
+            [image_in, style_in, topic_in, n_in, mode_in],
             [scene_out, status_out, caption_pick, meme_out],
         )
         burn.click(burn_caption, [image_in, caption_pick, placement_in], meme_out)

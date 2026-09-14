@@ -33,14 +33,14 @@ def _image():
 
 def test_run_factory_returns_one_value_per_declared_output():
     # The Meme Factory click declares four outputs.
-    result = app.run_factory(_image(), "Dad Joke", "", 2, 0.9, router.AUTO_MODE, False)
+    result = app.run_factory(_image(), "Dad Joke", "", 2, router.AUTO_MODE)
 
     assert len(result) == 4
 
 
 def test_run_factory_reports_the_serving_model_and_the_scene():
     scene_md, status_md, _picker, _meme = app.run_factory(
-        _image(), "Dad Joke", "", 2, 0.9, router.AUTO_MODE, False
+        _image(), "Dad Joke", "", 2, router.AUTO_MODE
     )
 
     assert SCENE in scene_md
@@ -48,18 +48,23 @@ def test_run_factory_reports_the_serving_model_and_the_scene():
     assert "Vision (local BLIP)" in status_md
 
 
-def test_run_factory_surfaces_failover_in_the_status_block():
+def test_run_factory_surfaces_failover_in_the_status_block(monkeypatch):
+    def remote_down(*args, **kwargs):
+        raise remote_llm.RemoteCaptionError("503 provider down")
+
+    monkeypatch.setattr(remote_llm, "generate_captions", remote_down)
+
     _scene, status_md, _picker, _meme = app.run_factory(
-        _image(), "Dad Joke", "", 2, 0.9, router.AUTO_MODE, True
+        _image(), "Dad Joke", "", 2, router.AUTO_MODE
     )
 
     assert router.LOCAL_LABEL in status_md
-    assert "Simulated outage" in status_md
+    assert "503 provider down" in status_md
 
 
 def test_run_factory_without_an_image_asks_for_one():
     _scene, status_md, _picker, _meme = app.run_factory(
-        None, "Dad Joke", "", 2, 0.9, router.AUTO_MODE, False
+        None, "Dad Joke", "", 2, router.AUTO_MODE
     )
 
     assert status_md == app.UPLOAD_PROMPT

@@ -56,8 +56,8 @@ The **Routing** control under *Generation settings* selects:
 
 The status panel always names the model that actually served the request. Failures detected
 automatically: missing token, provider/HTTP error, timeout, rate limit, empty response, and
-unparseable response. The **Simulate remote API outage** checkbox forces the failure path for
-demonstration; logging out of the sidebar triggers the same failover through a genuine error.
+unparseable response. To see failover for real, run the app locally without a Hugging Face
+token, or pick **Remote only** to see the raw error instead.
 
 ## Layout
 

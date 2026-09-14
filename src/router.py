@@ -45,7 +45,6 @@ def make_captions(
     temperature: float = 0.9,
     topic: str = "",
     mode: str = AUTO_MODE,
-    simulate_outage: bool = False,
     token: str | None = None,
 ) -> dict:
     """Produce captions and report which model actually served the request.
@@ -63,8 +62,6 @@ def make_captions(
         )
 
     try:
-        if simulate_outage:
-            raise remote_llm.RemoteCaptionError("Simulated outage (demo toggle).")
         print("[MODE] api")
         captions = remote_llm.generate_captions(
             scene, style, n, temperature, topic=topic, token=token
