@@ -15,10 +15,9 @@ All external models, documentation, and LLM assistance used to build Meme Creato
 
 ## LLM assistance
 
-**Claude Opus 5 via Claude Code** was used as an assistant during development. Our directed
+**Claude Opus 5 via Claude Code** was used as an assistant during development. We directed
 the project and made its design decisions. Claude assisted with the following:
 
-- Extracting and interpreting the assignment PDF.
 - Discussing architecture options, including the design of a shared local BLIP model with
   the remote/local split at the text-generation step.
 - Implementing `app.py`, the modules under `src/`, the `tests/` suite,
