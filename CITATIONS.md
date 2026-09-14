@@ -1,17 +1,17 @@
 # Citations
 
-All external models, documentation, and LLM assistance used to build MemeForge.
+All external models, documentation, and LLM assistance used to build Meme Creator.
 
 ## Starting point
 
 - **DS/CS553 class example** (`example.py` in this repository) — the chatbot Space template
   demonstrating both an API-based model and a locally hosted Transformers pipeline.
-  MemeForge follows its structure directly: the `Qwen/Qwen3-0.6B` and `openai/gpt-oss-20b`
+  Meme Creator follows its structure directly: the `Qwen/Qwen3-0.6B` and `openai/gpt-oss-20b`
   model choices, the `gr.LoginButton` / `gr.OAuthToken` authentication flow, the
   `InferenceClient` call shape, the `dtype="auto"` pipeline construction, the `[MODE]`
   logging convention, and the `fancy_css` stylesheet (container width, centered title and
   subtitle, bordered rounded panel, and the `max-width: 768px` media query), adapted to
-  MemeForge's element ids.
+  Meme Creator's element ids.
 
 ## Models
 

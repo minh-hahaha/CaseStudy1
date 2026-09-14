@@ -1,4 +1,4 @@
-"""MemeForge: Gradio front end for DS/CS553 Case Study 1.
+"""Meme Creator: Gradio front end for DS/CS553 Case Study 1.
 
 Upload an image, pick a voice, get class-ready meme captions, render the meme.
 Vision (BLIP) always runs locally on this Space. Caption writing is served
@@ -169,7 +169,7 @@ def run_bakeoff(image, style, topic, hf_token: gr.OAuthToken | None = None):
     return header, remote_out, local_out
 
 
-with gr.Blocks(title="MemeForge") as demo:
+with gr.Blocks(title="Meme Creator") as demo:
     with gr.Sidebar():
         # Gradio's LoginButton raises at construction time outside a Space
         # unless the machine already holds a token, so gate it on SPACE_ID and
@@ -183,7 +183,7 @@ with gr.Blocks(title="MemeForge") as demo:
             elem_id="model-note",
         )
 
-    gr.Markdown("# 🔥 MemeForge", elem_id="app-title")
+    gr.Markdown("# Meme Creator", elem_id="app-title")
     gr.Markdown(
         "Drop in an image, pick a voice, get class-ready meme captions. "
         "Vision runs locally on this Space. Captions come from a remote LLM, "

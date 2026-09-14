@@ -98,7 +98,7 @@ def respond(
     print("[MODE] api")
 
     if hf_token is None or not getattr(hf_token, "token", None):
-        yield "⚠️ Please log in with your Hugging Face account first."
+        yield "Please log in with your Hugging Face account first."
         return
 
     client = InferenceClient(
@@ -166,7 +166,7 @@ with gr.Blocks(css=fancy_css) as demo:
         gr.LoginButton()
 
     gr.Markdown(
-        "# 🌟 Effective AI Chatbot",
+        "# Effective AI Chatbot",
         elem_id="app-title",
     )
 

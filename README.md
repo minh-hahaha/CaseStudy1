@@ -1,6 +1,5 @@
 ---
-title: MemeForge
-emoji: 🔥
+title: Meme Creator
 colorFrom: purple
 colorTo: pink
 sdk: gradio
@@ -14,13 +13,13 @@ pinned: false
 short_description: Meme captions from any image, via remote or local LLM.
 ---
 
-# 🔥 MemeForge
+# Meme Creator
 
 Meme caption generator for **DS/CS553 Case Study 1**. Upload an image, pick a voice, get
 class-ready captions, render the meme.
 
 Professors, teachers, and anyone who opens a meeting with a meme need one fast, on-topic,
-and safe for a work audience. MemeForge takes a screenshot or photo and returns captions in
+and safe for a work audience. Meme Creator takes a screenshot or photo and returns captions in
 a chosen voice, then burns the caption into the image.
 
 ## Architecture

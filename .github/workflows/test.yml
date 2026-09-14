@@ -48,10 +48,9 @@ jobs:
           import json, os, urllib.request
 
           status = os.environ["STATUS"]
-          icon = {"success": "✅", "failure": "❌"}.get(status, "⚠️")
           payload = {
               "content": (
-                  f"{icon} **MemeForge CI: {status}**\n"
+                  f"**Meme Creator CI: {status}**\n"
                   f"Commit `{os.environ['GITHUB_SHA'][:7]}` on "
                   f"`{os.environ['GITHUB_REF_NAME']}` by {os.environ['GITHUB_ACTOR']}\n"
                   f"https://github.com/{os.environ['GITHUB_REPOSITORY']}"
