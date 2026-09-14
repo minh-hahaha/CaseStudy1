@@ -44,7 +44,12 @@ jobs:
           request = urllib.request.Request(
               os.environ["WEBHOOK"],
               data=json.dumps(payload).encode(),
-              headers={"Content-Type": "application/json"},
+              headers={
+                  "Content-Type": "application/json",
+                  # Discord's Cloudflare edge 403s the default Python-urllib
+                  # User-Agent as bot traffic; a normal-looking one gets through.
+                  "User-Agent": "Mozilla/5.0 (compatible; GitHubActionsBot/1.0)",
+              },
           )
           with urllib.request.urlopen(request) as response:
               print("Discord responded", response.status)
