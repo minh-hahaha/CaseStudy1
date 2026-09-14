@@ -60,6 +60,29 @@ def test_raises_when_nothing_usable_remains():
         parse_caption_payload("a\nb\nc", 3)
 
 
+def test_finds_json_after_prose_that_contains_brackets():
+    raw = 'Plan: use {"captions": [...]} shape.\n{"captions": ["the real one"]}'
+
+    assert parse_caption_payload(raw, 3) == ["the real one"]
+
+
+def test_takes_text_after_harmony_final_marker():
+    raw = 'analysisthinking [a] {b}assistantfinal{"captions": ["final answer"]}'
+
+    assert parse_caption_payload(raw, 3) == ["final answer"]
+
+
+def test_takes_text_after_harmony_channel_tokens():
+    raw = '<|channel|>analysis<|message|>hmm<|end|><|channel|>final<|message|>["ok caption"]'
+
+    assert parse_caption_payload(raw, 3) == ["ok caption"]
+
+
+def test_line_fallback_can_be_disabled():
+    with pytest.raises(CaptionParseError):
+        parse_caption_payload("We need captions.\nLet's think.", 3, allow_lines=False)
+
+
 def test_strips_complete_think_block():
     raw = "<think>let me consider this</think>the answer"
 

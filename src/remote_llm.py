@@ -15,6 +15,9 @@ REQUEST_TIMEOUT_SECONDS = 25
 # returned empty content, so the budget has to cover reasoning + answer.
 MAX_RESPONSE_TOKENS = 1500
 MAX_REASON_CHARS = 220
+# Captions need almost no deliberation; low effort keeps reasoning from eating
+# the budget. Sent via extra_body because it is an OpenAI-compatible extension.
+REASONING_EFFORT = "low"
 
 
 class RemoteCaptionError(RuntimeError):
@@ -42,19 +45,17 @@ def candidate_tokens(token: str | None = None) -> list[str]:
 
 
 def _extract_reply(choice) -> str:
-    """Return the assistant text, tolerating reasoning-model response shapes.
+    """Return the assistant's answer text.
 
-    A reasoning model can leave ``content`` empty — either because the token
-    budget ran out mid-reasoning, or because the provider puts the usable text
-    in ``reasoning``. Prefer ``content``, fall back to ``reasoning``, and report
-    ``finish_reason`` when both are empty so a truncation is diagnosable instead
-    of looking like an outage.
+    Only ``content`` is ever used. A reasoning model's ``reasoning`` field is
+    its chain of thought, not an answer: rendering it produced "captions" like
+    "We need to write three puns." When ``content`` is empty, report
+    ``finish_reason`` so a truncation is diagnosable instead of looking like an
+    outage, and let the router fall back to the local model.
     """
-    message = choice.message
-    for field in ("content", "reasoning"):
-        text = getattr(message, field, None)
-        if text and text.strip():
-            return text
+    text = getattr(choice.message, "content", None)
+    if text and text.strip():
+        return text
 
     finish = getattr(choice, "finish_reason", None) or "unknown"
     raise RemoteCaptionError(
@@ -81,6 +82,7 @@ def _request_captions(
         messages=build_messages(scene, style, n, topic),
         max_tokens=MAX_RESPONSE_TOKENS,
         temperature=temperature,
+        extra_body={"reasoning_effort": REASONING_EFFORT},
     )
     return _extract_reply(response.choices[0])
 
@@ -130,7 +132,9 @@ def generate_captions(
             continue
 
         try:
-            return parse_caption_payload(raw, n)
+            # JSON only: gpt-oss follows the format reliably, so non-JSON output
+            # is leaked reasoning, and splitting it into lines shows it as captions.
+            return parse_caption_payload(raw, n, allow_lines=False)
         except CaptionParseError as exc:
             failures.append(_short(str(exc)))
 
