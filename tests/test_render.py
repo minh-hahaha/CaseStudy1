@@ -58,3 +58,27 @@ def test_font_honours_the_requested_size():
     from src.meme_render import _load_font
 
     assert _load_font(64).getbbox("WWW") != _load_font(12).getbbox("WWW")
+
+
+def test_handles_non_rgb_image_modes():
+    # Gradio's uploaded image can arrive in any PIL mode depending on the
+    # source file (grayscale scan, transparent PNG, palette GIF); render_meme
+    # must not assume RGB going in.
+    for mode in ("L", "RGBA", "P"):
+        source = Image.new(mode, SIZE)
+
+        rendered = render_meme(source, bottom_text="hello world")
+
+        assert rendered.mode == "RGB"
+        assert rendered.size == SIZE
+
+
+def test_handles_a_caption_with_no_spaces_to_wrap_on():
+    # textwrap.wrap must not crash or drop the caption when it can't find a
+    # word boundary to break on.
+    long_word = "a" * 200
+
+    rendered = render_meme(_blank(), bottom_text=long_word)
+
+    assert rendered.size == SIZE
+    assert rendered.tobytes() != _blank().tobytes()

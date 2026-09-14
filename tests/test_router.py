@@ -109,3 +109,19 @@ def test_result_always_reports_elapsed_time(monkeypatch):
 
 def test_auto_is_the_default_mode():
     assert router.MODES[0] == router.AUTO_MODE
+
+
+def test_simulate_outage_is_ignored_in_local_only_mode(monkeypatch):
+    # Local-only mode never touches the remote path, so the outage toggle
+    # (which only fakes a remote failure) has nothing to simulate.
+    def forbidden(*a, **k):
+        raise AssertionError("Local-only mode must not touch the network.")
+
+    monkeypatch.setattr(remote_llm, "generate_captions", forbidden)
+
+    result = router.make_captions(
+        "a cat", "Dad Joke", mode=router.LOCAL_ONLY_MODE, simulate_outage=True
+    )
+
+    assert result["captions"] == ["local caption"]
+    assert "Simulated outage" not in result["note"]
