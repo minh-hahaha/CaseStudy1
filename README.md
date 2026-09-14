@@ -15,12 +15,8 @@ short_description: Meme captions from any image, via remote or local LLM.
 
 # Meme Creator
 
-Meme caption generator for **DS/CS553 Case Study 1**. Upload an image, pick a voice, get
-class-ready captions, render the meme.
-
-Professors, teachers, and anyone who opens a meeting with a meme need one fast, on-topic,
-and safe for a work audience. Meme Creator takes a screenshot or photo and returns captions in
-a chosen voice, then burns the caption into the image.
+Meme caption generator for **DS/CS553 Case Study 1**. Upload an image, pick a voice, and get
+work-safe captions burned into the image.
 
 ## Architecture
 
@@ -89,11 +85,9 @@ tests/                   pytest suite, runs with no model downloads
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-export HF_TOKEN=hf_...        # needed for the remote path
+export HF_TOKEN=hf_...   # for the remote path
 python app.py
 ```
-
-The sidebar login button only appears on a Space; locally the app reads `HF_TOKEN` instead.
 
 ## Tests
 
@@ -135,7 +129,6 @@ Needs the full model stack, not the CI requirements.
 
 ## Links
 
-- Hugging Face Space: https://huggingface.co/spaces/minh-hahaha/CaseStudy1
-- GitHub repository: https://github.com/minh-hahaha/CaseStudy1
-
-See [CITATIONS.md](CITATIONS.md) for models, documentation, and LLM assistance.
+- Space: https://huggingface.co/spaces/minh-hahaha/CaseStudy1
+- GitHub: https://github.com/minh-hahaha/CaseStudy1
+- [CITATIONS.md](CITATIONS.md)
