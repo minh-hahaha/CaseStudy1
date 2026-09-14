@@ -49,6 +49,15 @@ All external models, documentation, and LLM assistance used to build MemeForge.
   reflected in the code: replacing an initially planned `google/flan-t5-base` local model
   with `Qwen/Qwen3-0.6B`, adding the `src/compute.py` hardware shim, pinning
   `gradio[oauth]==6.26.0` to match `sdk_version`, and gating `gr.LoginButton` on `SPACE_ID`.
+- **Claude (Anthropic), Sonnet 5, via Claude Code** — audited the repo against the full
+  assignment rubric, then added: `pyproject.toml` (ruff lint config) and a lint step in
+  `.github/workflows/test.yml`; edge-case tests in `tests/test_render.py` and
+  `tests/test_router.py`; `scripts/compare_models.py` (batch remote-vs-local timing
+  comparison); the "Model comparison for the report", "Known limitations", and failover
+  trade-offs sections of `README.md`; a Discord-notification step in
+  `.github/workflows/sync-to-hf.yml` (mirroring the existing one in `test.yml`); and the
+  `REPORT.md` scaffold, including drafting the Deliverable 4g LLM-analysis prompt/response
+  pair itself (see `REPORT.md` section g).
 
 _Note for the report: items 4g and 4h are marked "LLM only" and 4i and 4j "Human only".
 Record the model, the complete prompt, and the full response for 4g and 4h, and write 4i and

@@ -60,6 +60,15 @@ automatically: missing token, provider/HTTP error, timeout, rate limit, empty re
 unparseable response. The **Simulate remote API outage** checkbox forces the failure path for
 demonstration; logging out of the sidebar triggers the same failover through a genuine error.
 
+**Trade-offs.** Failover trades consistency for availability: a request that fails over is
+served by a materially weaker model (Qwen3-0.6B vs. gpt-oss-20b), so caption quality and
+tone can shift mid-session without the user asking for that. It also masks a real remote
+outage as a normal response — fine for keeping a demo or product alive, less fine if a
+grader or user needs to know the remote API is actually down (which is why **Remote only**
+mode exists, to surface that failure instead of hiding it). On the upside, it needs no
+manual intervention, adds no network dependency of its own (the fallback is on-host), and
+costs nothing extra to run since the local model is already loaded for Deliverable 2.
+
 ## Layout
 
 ```
@@ -72,6 +81,7 @@ src/remote_llm.py        Remote caption generation via the Inference API
 src/local_llm.py         Local caption generation with Qwen3
 src/router.py            Routing and failover (Deliverable 6)
 src/meme_render.py       Caption-to-image rendering
+scripts/compare_models.py  Batch remote-vs-local timing comparison for the report
 tests/                   pytest suite, runs with no model downloads
 ```
 
@@ -96,6 +106,33 @@ pytest -q --cov=src --cov-report=term-missing
 Every model call is monkeypatched, so the suite needs neither a GPU nor a model download and
 runs in under a second. `requirements-ci.txt` deliberately omits torch and transformers;
 `src/` imports them lazily inside functions so this stays true.
+
+CI also runs `ruff check .` as a lint gate (`pyproject.toml`; `example.py` is excluded since
+it's the unmodified class template).
+
+## Model comparison for the report
+
+The Model Lab tab compares both paths once, interactively. To collect averaged timings across
+several runs and styles for the report instead:
+
+```bash
+pip install -r requirements.txt
+python scripts/compare_models.py path/to/image.jpg --styles "Dad Joke" "Sarcastic" --runs 3
+```
+
+Writes a per-call CSV (`comparison_results.csv` by default) and prints mean latency per path.
+Needs the full model stack, not the CI requirements.
+
+## Known limitations
+
+- The remote path depends on Hugging Face Inference Providers' availability and pricing for
+  `openai/gpt-oss-20b`; sustained heavy use can hit rate limits or cost more than expected.
+- The local path (`Qwen/Qwen3-0.6B`) is small enough to run without a dedicated GPU, but its
+  captions are noticeably less consistent in tone and formatting than the remote model's.
+- BLIP's scene description is a single, generic sentence; it can miss the specific detail
+  (a sign, an expression) that would make a caption actually funny.
+- No persistent caching: identical requests re-run the full pipeline every time, including
+  concurrent duplicate requests during a demo.
 
 ## Links
 
