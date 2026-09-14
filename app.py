@@ -243,6 +243,11 @@ with gr.Blocks(title="Meme Creator") as demo:
                     lab_local = gr.Markdown()
 
         lab_go.click(
+            lambda: ("Running both models…", "", ""),
+            None,
+            [lab_header, lab_remote, lab_local],
+            queue=False,
+        ).then(
             run_bakeoff,
             [lab_image, lab_style, lab_topic],
             [lab_header, lab_remote, lab_local],
