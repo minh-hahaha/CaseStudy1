@@ -8,6 +8,7 @@ executed LLM, with automatic failover between them.
 Structure, CSS and the OAuth login flow follow the class example (example.py).
 """
 
+import random
 import time
 
 import gradio as gr
@@ -18,6 +19,18 @@ from src.styles import DEFAULT_STYLE, STYLES
 
 PLACEMENTS = ["Top", "Bottom"]
 UPLOAD_PROMPT = "Upload an image first."
+NO_SCENE_YET = "Generate captions at least once before rerolling."
+HISTORY_LIMIT = 8
+SURPRISE_TOPICS = [
+    "",
+    "finals week",
+    "the WiFi",
+    "group projects",
+    "8am classes",
+    "office hours",
+    "the dining hall",
+    "midterms",
+]
 
 fancy_css = """
 .gradio-container {
@@ -33,7 +46,7 @@ fancy_css = """
     color: var(--body-text-color-subdued);
     margin-bottom: 24px;
 }
-#forge-container, #lab-container {
+#forge-container, #lab-container, #gallery-container {
     width: 100%;
     border: 1px solid var(--border-color-primary);
     border-radius: 12px;
@@ -49,7 +62,7 @@ fancy_css = """
     .gradio-container {
         width: 98% !important;
     }
-    #forge-container, #lab-container {
+    #forge-container, #lab-container, #gallery-container {
         padding: 8px;
     }
 }
@@ -68,11 +81,18 @@ def _token_value(hf_token) -> str | None:
     return getattr(hf_token, "token", None)
 
 
-def _status_block(source: str, vision_time: float, elapsed: float, note: str) -> str:
+def _status_block(
+    source: str, vision_time: float | None, elapsed: float, note: str
+) -> str:
     """Report which model served the request (Deliverable 6c) plus timings."""
+    vision_line = (
+        "**Vision (local BLIP):** cached, not rerun"
+        if vision_time is None
+        else f"**Vision (local BLIP):** {vision_time:.2f}s"
+    )
     bits = [
         f"**Served by:** {source}",
-        f"**Vision (local BLIP):** {vision_time:.2f}s",
+        vision_line,
         f"**Caption generation:** {elapsed:.2f}s",
     ]
     if note:
@@ -92,7 +112,7 @@ def run_factory(
 ):
     """Describe the image, route the caption request, and fill the picker."""
     if image is None:
-        return "", UPLOAD_PROMPT, gr.update(choices=[], value=None), None
+        return "", UPLOAD_PROMPT, gr.update(choices=[], value=None), None, ""
 
     scene, vision_time = _describe(image)
     result = router.make_captions(
@@ -114,20 +134,76 @@ def run_factory(
         ),
         gr.update(choices=captions, value=captions[0] if captions else None),
         None,
+        scene,
+    )
+
+
+def reroll_captions(
+    scene,
+    style,
+    topic,
+    n,
+    temperature,
+    mode,
+    simulate_outage,
+    hf_token: gr.OAuthToken | None = None,
+):
+    """Regenerate captions for the already-described scene, skipping BLIP entirely."""
+    if not scene:
+        return NO_SCENE_YET, gr.update(choices=[], value=None)
+
+    result = router.make_captions(
+        scene=scene,
+        style=style,
+        n=int(n),
+        temperature=float(temperature),
+        topic=topic,
+        mode=mode,
+        simulate_outage=simulate_outage,
+        token=_token_value(hf_token),
+    )
+
+    captions = result["captions"]
+    return (
+        _status_block(result["source"], None, result["elapsed"], result["note"]),
+        gr.update(choices=captions, value=captions[0] if captions else None),
+    )
+
+
+def random_settings():
+    """Pick a random style, topic, and temperature for the Surprise Me button."""
+    return (
+        random.choice(list(STYLES)),
+        random.choice(SURPRISE_TOPICS),
+        round(random.uniform(0.6, 1.3), 1),
     )
 
 
 def burn_caption(image, caption, placement):
-    """Burn the chosen caption onto the image at the chosen edge."""
+    """Burn the chosen caption onto the image at the chosen edge.
+
+    Labels the output with the caption text itself, so a screen reader
+    announces what the meme says rather than nothing at all.
+    """
     if image is None or not caption:
         return None
 
     is_top = placement == "Top"
-    return render_meme(
+    rendered = render_meme(
         image,
         top_text=caption if is_top else "",
         bottom_text="" if is_top else caption,
     )
+    return gr.update(value=rendered, label=f'Meme: "{caption}"')
+
+
+def add_to_history(meme, caption, history):
+    """Append the latest rendered meme to the session gallery, capped at HISTORY_LIMIT."""
+    if meme is None:
+        return history, gr.update(value=history)
+
+    updated = [*history, (meme, caption)][-HISTORY_LIMIT:]
+    return updated, gr.update(value=updated)
 
 
 def _as_bullets(captions) -> str:
@@ -169,6 +245,40 @@ def run_bakeoff(image, style, topic, hf_token: gr.OAuthToken | None = None):
     return header, remote_out, local_out
 
 
+def run_style_gallery(
+    image, topic, mode, simulate_outage, hf_token: gr.OAuthToken | None = None
+):
+    """Render one meme per style on the same image, for a one-click voice tour."""
+    if image is None:
+        return UPLOAD_PROMPT, []
+
+    start = time.perf_counter()
+    scene, _vision_time = _describe(image)
+
+    items = []
+    for style in STYLES:
+        result = router.make_captions(
+            scene=scene,
+            style=style,
+            n=1,
+            temperature=0.9,
+            topic=topic,
+            mode=mode,
+            simulate_outage=simulate_outage,
+            token=_token_value(hf_token),
+        )
+        captions = result["captions"]
+        if captions:
+            rendered = render_meme(image, bottom_text=captions[0])
+            items.append((rendered, style))
+        else:
+            items.append((image, f"{style} — failed: {result['note']}"))
+
+    elapsed = time.perf_counter() - start
+    header = f"*BLIP saw:* {scene}  \nGenerated {len(STYLES)} styles in {elapsed:.1f}s."
+    return header, items
+
+
 with gr.Blocks(title="MemeForge") as demo:
     with gr.Sidebar():
         # Gradio's LoginButton raises at construction time outside a Space
@@ -192,6 +302,9 @@ with gr.Blocks(title="MemeForge") as demo:
     )
 
     with gr.Tab("Meme Factory"):
+        scene_state = gr.State("")
+        history_state = gr.State([])
+
         with gr.Row(elem_id="forge-container"):
             with gr.Column(scale=1):
                 image_in = gr.Image(type="pil", label="Image")
@@ -211,7 +324,10 @@ with gr.Blocks(title="MemeForge") as demo:
                     outage_in = gr.Checkbox(
                         label="Simulate remote API outage (failover demo)"
                     )
-                go = gr.Button("Generate captions", variant="primary")
+                with gr.Row():
+                    go = gr.Button("Generate captions", variant="primary")
+                    surprise = gr.Button("🎲 Surprise me")
+                reroll = gr.Button("🔁 Reroll captions (same scene)")
             with gr.Column(scale=1):
                 scene_out = gr.Markdown()
                 status_out = gr.Markdown()
@@ -222,12 +338,28 @@ with gr.Blocks(title="MemeForge") as demo:
                 burn = gr.Button("Render meme")
                 meme_out = gr.Image(label="Your meme", type="pil")
 
-        go.click(
-            run_factory,
-            [image_in, style_in, topic_in, n_in, temp_in, mode_in, outage_in],
-            [scene_out, status_out, caption_pick, meme_out],
+        gr.Markdown("### This session's memes")
+        history_gallery = gr.Gallery(
+            label="History", columns=4, height="auto", show_label=False
         )
-        burn.click(burn_caption, [image_in, caption_pick, placement_in], meme_out)
+
+        factory_inputs = [image_in, style_in, topic_in, n_in, temp_in, mode_in, outage_in]
+        factory_outputs = [scene_out, status_out, caption_pick, meme_out, scene_state]
+
+        go.click(run_factory, factory_inputs, factory_outputs)
+        surprise.click(random_settings, [], [style_in, topic_in, temp_in]).then(
+            run_factory, factory_inputs, factory_outputs
+        )
+        reroll.click(
+            reroll_captions,
+            [scene_state, style_in, topic_in, n_in, temp_in, mode_in, outage_in],
+            [status_out, caption_pick],
+        )
+        burn.click(burn_caption, [image_in, caption_pick, placement_in], meme_out).then(
+            add_to_history,
+            [meme_out, caption_pick, history_state],
+            [history_state, history_gallery],
+        )
 
     with gr.Tab("Model Lab"):
         with gr.Column(elem_id="lab-container"):
@@ -252,6 +384,25 @@ with gr.Blocks(title="MemeForge") as demo:
             run_bakeoff,
             [lab_image, lab_style, lab_topic],
             [lab_header, lab_remote, lab_local],
+        )
+
+    with gr.Tab("Style Gallery"):
+        with gr.Column(elem_id="gallery-container"):
+            gr.Markdown(
+                "Every voice, one image, one click. Uses whatever image and topic are "
+                "set on the Meme Factory tab, and calls the model once per style — "
+                "expect this to take a little longer than a single caption."
+            )
+            gallery_go = gr.Button("Generate all styles", variant="primary")
+            gallery_header = gr.Markdown()
+            gallery_out = gr.Gallery(
+                label="One caption per style", columns=3, height="auto"
+            )
+
+        gallery_go.click(
+            run_style_gallery,
+            [image_in, topic_in, mode_in, outage_in],
+            [gallery_header, gallery_out],
         )
 
 
