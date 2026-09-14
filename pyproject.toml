@@ -1,0 +1,13 @@
+[tool.ruff]
+line-length = 92
+target-version = "py312"
+# example.py is the unmodified class-provided template (see CITATIONS.md) —
+# not our code to lint or reformat.
+extend-exclude = ["example.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
