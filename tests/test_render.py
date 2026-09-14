@@ -58,3 +58,16 @@ def test_font_honours_the_requested_size():
     from src.meme_render import _load_font
 
     assert _load_font(64).getbbox("WWW") != _load_font(12).getbbox("WWW")
+
+
+def test_long_uppercase_caption_stays_inside_the_side_margins():
+    # Wide capitals overflowed when wrapping guessed character widths.
+    width, height = 766, 766
+    source = Image.new("RGB", (width, height), "white")
+
+    rendered = render_meme(source, top_text="when the reasoning model finally answers")
+
+    edge = max(2, width // 100)
+    for x in (*range(edge), *range(width - edge, width)):
+        column = rendered.crop((x, 0, x + 1, height))
+        assert column.tobytes() == source.crop((x, 0, x + 1, height)).tobytes()
