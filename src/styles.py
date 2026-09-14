@@ -9,26 +9,17 @@ in the report a single-variable experiment.
 MAX_CAPTION_CHARS = 120
 
 STYLES = {
-    "Deadpan Academic": (
-        "Write in a dry, understated academic register. Use precise vocabulary "
-        "and treat something trivial with unwarranted scholarly seriousness. "
-        "No exclamation marks."
-    ),
     "Corporate LinkedIn": (
         "Write as an insufferable LinkedIn thought-leadership post. Start with a "
         "mundane observation, pivot to a grand business lesson. Short lines."
     ),
-    "Gen-Z Chaos": (
+    "Gen-Z Unhinged": (
         "Write in chaotic internet-native voice. Lowercase, fragmentary, "
         "absurdist. No hashtags. Do not overuse slang to the point of nonsense."
     ),
     "Dad Joke": (
         "Write a groan-inducing pun or wordplay caption. Family-friendly, "
         "deliberately corny, one clean setup and payoff."
-    ),
-    "Existential Dread": (
-        "Write a caption that starts light and lands somewhere quietly bleak. "
-        "Understated, not melodramatic."
     ),
     "Professor Energy": (
         "Write as a professor opening a lecture with a joke about their own "

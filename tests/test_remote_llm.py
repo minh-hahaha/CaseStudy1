@@ -170,15 +170,43 @@ def test_empty_response_becomes_a_remote_caption_error(space_token, fake_client)
         remote_llm.generate_captions("a cat", "Dad Joke")
 
 
-def test_reasoning_channel_is_used_when_content_is_empty(space_token, fake_client):
-    """The real failure on the Space: gpt-oss left content empty."""
+def test_reasoning_channel_is_never_shown_as_captions(space_token, fake_client):
+    """The bug on the Space: reasoning lines were rendered as the 3 captions."""
     fake_client(
         lambda token: _FakeChoice(
-            content="", reasoning='{"captions": ["found in reasoning"]}'
+            content="",
+            reasoning="We need to write captions.\nThe user wants puns.\nLet's think.",
+            finish_reason="length",
         )
     )
 
-    assert remote_llm.generate_captions("a cat", "Dad Joke") == ["found in reasoning"]
+    with pytest.raises(RemoteCaptionError, match="finish_reason=length"):
+        remote_llm.generate_captions("a cat", "Dad Joke")
+
+
+def test_reasoning_prose_leaked_into_content_is_rejected(space_token, fake_client):
+    fake_client(
+        lambda token: "We need to produce JSON.\nThe style is dad joke.\nOkay."
+    )
+
+    with pytest.raises(RemoteCaptionError):
+        remote_llm.generate_captions("a cat", "Dad Joke")
+
+
+def test_harmony_final_channel_is_extracted_from_content(space_token, fake_client):
+    fake_client(
+        lambda token: 'analysisWe need {some} JSON.assistantfinal{"captions": ["real one"]}'
+    )
+
+    assert remote_llm.generate_captions("a cat", "Dad Joke") == ["real one"]
+
+
+def test_requests_low_reasoning_effort(space_token, fake_client):
+    recorder = fake_client(lambda token: '{"captions": ["x"]}')
+
+    remote_llm.generate_captions("a cat", "Dad Joke")
+
+    assert recorder["extra_body"] == {"reasoning_effort": "low"}
 
 
 def test_truncation_is_reported_via_finish_reason(space_token, fake_client):

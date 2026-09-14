@@ -13,6 +13,7 @@ from PIL import Image
 
 import app
 from src import local_llm, local_vision, remote_llm, router
+from src.styles import STYLES
 
 SCENE = "two cats sleeping on a couch"
 
@@ -33,14 +34,14 @@ def _image():
 
 def test_run_factory_returns_one_value_per_declared_output():
     # The Meme Factory click declares five outputs (including the scene cache).
-    result = app.run_factory(_image(), "Dad Joke", "", 2, 0.9, router.AUTO_MODE, False)
+    result = app.run_factory(_image(), "Dad Joke", "", 2, router.AUTO_MODE)
 
     assert len(result) == 5
 
 
 def test_run_factory_reports_the_serving_model_and_the_scene():
     scene_md, status_md, _picker, _meme, scene_state = app.run_factory(
-        _image(), "Dad Joke", "", 2, 0.9, router.AUTO_MODE, False
+        _image(), "Dad Joke", "", 2, router.AUTO_MODE
     )
 
     assert SCENE in scene_md
@@ -49,18 +50,23 @@ def test_run_factory_reports_the_serving_model_and_the_scene():
     assert scene_state == SCENE
 
 
-def test_run_factory_surfaces_failover_in_the_status_block():
+def test_run_factory_surfaces_failover_in_the_status_block(monkeypatch):
+    def remote_down(*args, **kwargs):
+        raise remote_llm.RemoteCaptionError("503 provider down")
+
+    monkeypatch.setattr(remote_llm, "generate_captions", remote_down)
+
     _scene, status_md, _picker, _meme, _state = app.run_factory(
-        _image(), "Dad Joke", "", 2, 0.9, router.AUTO_MODE, True
+        _image(), "Dad Joke", "", 2, router.AUTO_MODE
     )
 
     assert router.LOCAL_LABEL in status_md
-    assert "Simulated outage" in status_md
+    assert "503 provider down" in status_md
 
 
 def test_run_factory_without_an_image_asks_for_one():
     _scene, status_md, _picker, _meme, scene_state = app.run_factory(
-        None, "Dad Joke", "", 2, 0.9, router.AUTO_MODE, False
+        None, "Dad Joke", "", 2, router.AUTO_MODE
     )
 
     assert status_md == app.UPLOAD_PROMPT
@@ -88,20 +94,15 @@ def test_burn_caption_without_a_caption_returns_nothing():
     assert app.burn_caption(None, "a caption", "Bottom") is None
 
 
-def test_random_settings_returns_a_valid_style_and_temperature():
-    from src.styles import STYLES
-
-    style, topic, temperature = app.random_settings()
+def test_random_settings_returns_a_valid_style_and_topic():
+    style, topic = app.random_settings()
 
     assert style in STYLES
     assert topic in app.SURPRISE_TOPICS
-    assert 0.6 <= temperature <= 1.3
 
 
 def test_reroll_captions_without_a_prior_scene_asks_to_generate_first():
-    status, picker = app.reroll_captions(
-        "", "Dad Joke", "", 2, 0.9, router.AUTO_MODE, False
-    )
+    status, picker = app.reroll_captions("", "Dad Joke", "", 2, router.AUTO_MODE)
 
     assert status == app.NO_SCENE_YET
     assert picker["choices"] == []
@@ -113,9 +114,7 @@ def test_reroll_captions_never_touches_blip(monkeypatch):
 
     monkeypatch.setattr(local_vision, "describe_image", forbidden)
 
-    status, picker = app.reroll_captions(
-        SCENE, "Dad Joke", "", 2, 0.9, router.AUTO_MODE, False
-    )
+    status, picker = app.reroll_captions(SCENE, "Dad Joke", "", 2, router.AUTO_MODE)
 
     assert "cached, not rerun" in status
     assert picker["choices"] == ["remote one", "remote two"]
@@ -146,16 +145,14 @@ def test_add_to_history_caps_at_the_limit():
 
 
 def test_run_style_gallery_returns_one_item_per_style():
-    from src.styles import STYLES
-
-    header, items = app.run_style_gallery(_image(), "", router.AUTO_MODE, False)
+    header, items = app.run_style_gallery(_image(), "", router.AUTO_MODE)
 
     assert SCENE in header
     assert len(items) == len(STYLES)
 
 
 def test_run_style_gallery_without_an_image_asks_for_one():
-    header, items = app.run_style_gallery(None, "", router.AUTO_MODE, False)
+    header, items = app.run_style_gallery(None, "", router.AUTO_MODE)
 
     assert header == app.UPLOAD_PROMPT
     assert items == []
@@ -168,7 +165,7 @@ def test_run_style_gallery_reports_a_per_style_failure_without_crashing(monkeypa
     monkeypatch.setattr(remote_llm, "generate_captions", boom)
     monkeypatch.setattr(local_llm, "generate_captions", boom)
 
-    _header, items = app.run_style_gallery(_image(), "", router.REMOTE_ONLY_MODE, False)
+    _header, items = app.run_style_gallery(_image(), "", router.REMOTE_ONLY_MODE)
 
     assert any("failed" in label for _img, label in items)
 

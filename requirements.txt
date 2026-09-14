@@ -3,6 +3,9 @@
 # is required by gr.LoginButton (itsdangerous + authlib), and an unpinned gradio
 # here would drift from sdk_version, which is the classic blank-Space bug.
 gradio[oauth]==6.26.0
+# authlib >=1.8 falls back to legacy httpx (with a deprecation warning at
+# import) unless httpx2 is installed; gradio itself still uses httpx.
+httpx2
 spaces
 # >=4.51 is the first release with Qwen3 support. No upper bound: local_vision
 # uses the processor/model API rather than the `image-to-text` pipeline task,

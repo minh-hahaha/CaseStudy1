@@ -1,6 +1,5 @@
 ---
-title: MemeForge
-emoji: 🔥
+title: Meme Creator
 colorFrom: purple
 colorTo: pink
 sdk: gradio
@@ -14,13 +13,13 @@ pinned: false
 short_description: Meme captions from any image, via remote or local LLM.
 ---
 
-# 🔥 MemeForge
+# Meme Creator
 
 Meme caption generator for **DS/CS553 Case Study 1**. Upload an image, pick a voice, get
 class-ready captions, render the meme.
 
 Professors, teachers, and anyone who opens a meeting with a meme need one fast, on-topic,
-and safe for a work audience. MemeForge takes a screenshot or photo and returns captions in
+and safe for a work audience. Meme Creator takes a screenshot or photo and returns captions in
 a chosen voice, then burns the caption into the image.
 
 ## Architecture
@@ -57,8 +56,8 @@ The **Routing** control under *Generation settings* selects:
 
 The status panel always names the model that actually served the request. Failures detected
 automatically: missing token, provider/HTTP error, timeout, rate limit, empty response, and
-unparseable response. The **Simulate remote API outage** checkbox forces the failure path for
-demonstration; logging out of the sidebar triggers the same failover through a genuine error.
+unparseable response. To see failover for real, run the app locally without a Hugging Face
+token, or pick **Remote only** to see the raw error instead.
 
 **Trade-offs.** Failover trades consistency for availability: a request that fails over is
 served by a materially weaker model (Qwen3-0.6B vs. gpt-oss-20b), so caption quality and
@@ -72,7 +71,7 @@ costs nothing extra to run since the local model is already loaded for Deliverab
 ## Layout
 
 ```
-app.py                   Gradio UI: Meme Factory tab + Model Lab tab
+app.py                   Gradio UI: Meme Factory, Model Lab, and Style Gallery tabs
 src/compute.py           ZeroGPU / CPU / CI hardware shim
 src/styles.py            Caption styles and shared prompt construction
 src/parsing.py           Shared response parsing for both paths
@@ -117,7 +116,7 @@ several runs and styles for the report instead:
 
 ```bash
 pip install -r requirements.txt
-python scripts/compare_models.py path/to/image.jpg --styles "Dad Joke" "Sarcastic" --runs 3
+python scripts/compare_models.py path/to/image.jpg --styles "Dad Joke" "Gen-Z Unhinged" --runs 3
 ```
 
 Writes a per-call CSV (`comparison_results.csv` by default) and prints mean latency per path.

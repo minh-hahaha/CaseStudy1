@@ -1,4 +1,4 @@
-"""MemeForge: Gradio front end for DS/CS553 Case Study 1.
+"""Meme Creator: Gradio front end for DS/CS553 Case Study 1.
 
 Upload an image, pick a voice, get class-ready meme captions, render the meme.
 Vision (BLIP) always runs locally on this Space. Caption writing is served
@@ -18,6 +18,7 @@ from src.meme_render import render_meme
 from src.styles import DEFAULT_STYLE, STYLES
 
 PLACEMENTS = ["Top", "Bottom"]
+CAPTION_TEMPERATURE = 0.9
 UPLOAD_PROMPT = "Upload an image first."
 NO_SCENE_YET = "Generate captions at least once before rerolling."
 HISTORY_LIMIT = 8
@@ -105,9 +106,7 @@ def run_factory(
     style,
     topic,
     n,
-    temperature,
     mode,
-    simulate_outage,
     hf_token: gr.OAuthToken | None = None,
 ):
     """Describe the image, route the caption request, and fill the picker."""
@@ -119,10 +118,9 @@ def run_factory(
         scene=scene,
         style=style,
         n=int(n),
-        temperature=float(temperature),
+        temperature=CAPTION_TEMPERATURE,
         topic=topic,
         mode=mode,
-        simulate_outage=simulate_outage,
         token=_token_value(hf_token),
     )
 
@@ -143,9 +141,7 @@ def reroll_captions(
     style,
     topic,
     n,
-    temperature,
     mode,
-    simulate_outage,
     hf_token: gr.OAuthToken | None = None,
 ):
     """Regenerate captions for the already-described scene, skipping BLIP entirely."""
@@ -156,10 +152,9 @@ def reroll_captions(
         scene=scene,
         style=style,
         n=int(n),
-        temperature=float(temperature),
+        temperature=CAPTION_TEMPERATURE,
         topic=topic,
         mode=mode,
-        simulate_outage=simulate_outage,
         token=_token_value(hf_token),
     )
 
@@ -171,12 +166,8 @@ def reroll_captions(
 
 
 def random_settings():
-    """Pick a random style, topic, and temperature for the Surprise Me button."""
-    return (
-        random.choice(list(STYLES)),
-        random.choice(SURPRISE_TOPICS),
-        round(random.uniform(0.6, 1.3), 1),
-    )
+    """Pick a random style and topic for the Surprise Me button."""
+    return random.choice(list(STYLES)), random.choice(SURPRISE_TOPICS)
 
 
 def burn_caption(image, caption, placement):
@@ -221,7 +212,12 @@ def run_bakeoff(image, style, topic, hf_token: gr.OAuthToken | None = None):
     try:
         remote_out = _as_bullets(
             remote_llm.generate_captions(
-                scene, style, 3, 0.9, topic=topic, token=_token_value(hf_token)
+                scene,
+                style,
+                3,
+                CAPTION_TEMPERATURE,
+                topic=topic,
+                token=_token_value(hf_token),
             )
         )
     except remote_llm.RemoteCaptionError as exc:
@@ -231,7 +227,7 @@ def run_bakeoff(image, style, topic, hf_token: gr.OAuthToken | None = None):
     local_start = time.perf_counter()
     try:
         local_out = _as_bullets(
-            local_llm.generate_captions(scene, style, 3, 0.9, topic)
+            local_llm.generate_captions(scene, style, 3, CAPTION_TEMPERATURE, topic)
         )
     except local_llm.LocalCaptionError as exc:
         local_out = f"**Failed:** {exc}"
@@ -245,9 +241,7 @@ def run_bakeoff(image, style, topic, hf_token: gr.OAuthToken | None = None):
     return header, remote_out, local_out
 
 
-def run_style_gallery(
-    image, topic, mode, simulate_outage, hf_token: gr.OAuthToken | None = None
-):
+def run_style_gallery(image, topic, mode, hf_token: gr.OAuthToken | None = None):
     """Render one meme per style on the same image, for a one-click voice tour."""
     if image is None:
         return UPLOAD_PROMPT, []
@@ -261,10 +255,9 @@ def run_style_gallery(
             scene=scene,
             style=style,
             n=1,
-            temperature=0.9,
+            temperature=CAPTION_TEMPERATURE,
             topic=topic,
             mode=mode,
-            simulate_outage=simulate_outage,
             token=_token_value(hf_token),
         )
         captions = result["captions"]
@@ -279,7 +272,7 @@ def run_style_gallery(
     return header, items
 
 
-with gr.Blocks(title="MemeForge") as demo:
+with gr.Blocks(title="Meme Creator") as demo:
     with gr.Sidebar():
         # Gradio's LoginButton raises at construction time outside a Space
         # unless the machine already holds a token, so gate it on SPACE_ID and
@@ -293,7 +286,7 @@ with gr.Blocks(title="MemeForge") as demo:
             elem_id="model-note",
         )
 
-    gr.Markdown("# 🔥 MemeForge", elem_id="app-title")
+    gr.Markdown("# Meme Creator", elem_id="app-title")
     gr.Markdown(
         "Drop in an image, pick a voice, get class-ready meme captions. "
         "Vision runs locally on this Space. Captions come from a remote LLM, "
@@ -317,12 +310,8 @@ with gr.Blocks(title="MemeForge") as demo:
                 )
                 with gr.Accordion("Generation settings", open=False):
                     n_in = gr.Slider(1, 6, value=3, step=1, label="Captions")
-                    temp_in = gr.Slider(0.2, 1.4, value=0.9, step=0.1, label="Spice")
                     mode_in = gr.Radio(
                         router.MODES, value=router.AUTO_MODE, label="Routing"
-                    )
-                    outage_in = gr.Checkbox(
-                        label="Simulate remote API outage (failover demo)"
                     )
                 with gr.Row():
                     go = gr.Button("Generate captions", variant="primary")
@@ -343,16 +332,16 @@ with gr.Blocks(title="MemeForge") as demo:
             label="History", columns=4, height="auto", show_label=False
         )
 
-        factory_inputs = [image_in, style_in, topic_in, n_in, temp_in, mode_in, outage_in]
+        factory_inputs = [image_in, style_in, topic_in, n_in, mode_in]
         factory_outputs = [scene_out, status_out, caption_pick, meme_out, scene_state]
 
         go.click(run_factory, factory_inputs, factory_outputs)
-        surprise.click(random_settings, [], [style_in, topic_in, temp_in]).then(
+        surprise.click(random_settings, [], [style_in, topic_in]).then(
             run_factory, factory_inputs, factory_outputs
         )
         reroll.click(
             reroll_captions,
-            [scene_state, style_in, topic_in, n_in, temp_in, mode_in, outage_in],
+            [scene_state, style_in, topic_in, n_in, mode_in],
             [status_out, caption_pick],
         )
         burn.click(burn_caption, [image_in, caption_pick, placement_in], meme_out).then(
@@ -381,6 +370,11 @@ with gr.Blocks(title="MemeForge") as demo:
                     lab_local = gr.Markdown()
 
         lab_go.click(
+            lambda: ("Running both models…", "", ""),
+            None,
+            [lab_header, lab_remote, lab_local],
+            queue=False,
+        ).then(
             run_bakeoff,
             [lab_image, lab_style, lab_topic],
             [lab_header, lab_remote, lab_local],
@@ -401,7 +395,7 @@ with gr.Blocks(title="MemeForge") as demo:
 
         gallery_go.click(
             run_style_gallery,
-            [image_in, topic_in, mode_in, outage_in],
+            [image_in, topic_in, mode_in],
             [gallery_header, gallery_out],
         )
 
