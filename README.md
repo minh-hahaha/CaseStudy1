@@ -58,4 +58,5 @@ Model calls are mocked, so no GPU or downloads are needed.
 
 - Space: https://huggingface.co/spaces/minh-hahaha/CaseStudy1
 - GitHub: https://github.com/minh-hahaha/CaseStudy1
+- Demo: https://youtu.be/CZx28BOT-jk
 - [CITATIONS.md](CITATIONS.md)
