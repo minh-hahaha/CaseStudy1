@@ -8,7 +8,7 @@
 - Minh Ha
 - Max Jeronimo
 
-*Note: We did this most of the project together in-person, pair programming, so most of the commits come under Minh (with Claude Code helps of course).*
+*Note: We did this most of the project together in-person, pair programming, so most of the commits come under Minh (with Claude Code's help of course).*
 
 ## b. Product description
 
@@ -130,20 +130,96 @@ answer). Prices for
 
 ## g. Improvement suggestion from an established LLM [LLM only]
 
-**Model:** [ ]
+**Model:** [ Claude Opus 5 High Effort]
 
 **Prompt:**
-> [complete prompt]
+My partner and I built a meme-generator app called Meme Creator. A user uploads a photo, picks a "voice" (e.g. Professor Energy, Dad Joke, Corporate LinkedIn), optionally adds a topic (e.g. "midterm week"), and the app runs BLIP image captioning locally, then sends the description to an LLM (gpt-oss-20b remotely, or Qwen3-0.6B locally as fallback) to generate a caption, which is rendered onto the image in classic top/bottom meme style. What would you improve about this product, its architecture, or its user experience?
 
 **Response:**
-> [complete response]
+The biggest lever is the BLIP stage, and it's worth being blunt about it: BLIP captions are the enemy of comedy. It gives you "a man sitting at a desk with a laptop" when the joke actually lives in the fact that his eyes are dead, there's a Monster can in frame, and it's clearly 3am. Your LLM never sees any of that. It's writing jokes about a sentence, not about a photo.
+
+Two ways out, in order of how much I'd recommend them:
+
+Replace the two-stage pipeline with a VLM. Qwen2.5-VL-7B, Moondream2, or a hosted multimodal endpoint takes the image directly and writes the caption in one pass. This collapses your architecture, removes an entire failure mode, and the quality jump will be larger than anything else on this list.
+
+If you keep BLIP, interrogate it instead of captioning with it. Use BLIP-2 in VQA mode and ask three or four targeted questions: what's the facial expression, what's out of place, what's the setting, how many people. Assemble those into a scene description. You can also run CLIP zero-shot over a small set of meme-relevant axes (tired / smug / chaotic / wholesome). It's a hack, but it recovers a lot of the signal you're currently throwing away.
+
+The fallback cliff
+
+gpt-oss-20b to Qwen3-0.6B is not a graceful degradation, it's a trapdoor. A 0.6B model will produce captions that are technically English and reliably unfunny, and the user has no idea why the app suddenly got worse. Three options: bump the local tier to a quantized 3B or 4B, fall back to template-based captions per voice (fill-in-the-blank structures are more dependably funny than a tiny model improvising), or at minimum surface the tier so the user knows they're on the backup and can retry.
+
+Cheapest quality win available
+
+Generate five captions, not one. Humor has enormous variance, and sampling at temperature ~1.0 and showing the user a few options converts a coin flip into a near-certain hit. Users are also much more forgiving of a bad option in a set of five than of one bad output. Pair this with a regenerate button and per-line editing, because nobody ships the first caption they see.
+
+Make the scene description editable
+
+This is the highest value UX fix. When the vision stage misreads the photo, every downstream caption is nonsense and the user has no recourse except reuploading. If you show the description in a small editable field ("I see: a dog wearing sunglasses on a couch") the user fixes it in four seconds and gets a working meme. It also doubles as free labeled data on where your captioner fails.
+
+Make voices real
+
+Right now a voice is probably a line in a system prompt. Turn each one into a bundle: persona instruction, three or four few-shot examples, a length constraint, and a forbidden-phrases list. Few-shot examples are what actually pin down voice in smaller models, and they'll fix the drift where Corporate LinkedIn and Professor Energy start sounding identical after a few generations. Longer term, user-created voices are the obvious growth feature.
+
+Output contract
+
+Ask for JSON with top and bottom fields and hard word caps, then validate and retry on violation. Free-text parsing plus an LLM that decided to write a paragraph equals broken layout. On the rendering side: auto-fit font size, wrap properly, and run face detection so text doesn't land on the subject's face. Also consider offering the modern format (white caption box above the image) alongside classic Impact overlay, since that's what actually circulates on social now.
+
+Infrastructure
+
+Cache the BLIP or VLM output keyed on an image hash so regeneration skips the vision pass entirely. Preload models at startup rather than on first request. Stream progress per stage, because a multi-second pipeline with a spinner feels broken.
+
+The thing you have to handle before this goes public
+
+Users uploading photos of real people plus an LLM writing jokes about them is a harassment vector, and an open image upload endpoint carries real content moderation obligations. At minimum: an NSFW image classifier on upload, a caption filter on output, and a policy on photos of identifiable people. This is unglamorous and it's the part that gets a project shut down.
+
+One thing worth building for your own sake
+
+Given where you're headed, log thumbs up and down per generation along with the voice, model tier, and scene description. Within a few hundred samples you have a preference dataset, an eval set for pairwise LLM-as-judge comparisons, and concrete evidence of which voices and which model tiers actually work. "I built an eval harness for a subjective generation task" is a much stronger story than "I built a meme app."
 
 ## h. Same prompt, weaker local LLM [LLM only]
 
-**Model:** [ ]
+**Model:** [Qwen 3-0.6B ]
 
 **Response:**
-> [complete response]
+Here are potential improvements to your Meme Creator app, focusing on product features, architecture optimization, and user experience:
+
+Product Features
+Voice-to-Text Integration
+
+Add a voice-to-text feature to allow users to input their voice (e.g., "Dad Joke") directly into the app, enabling seamless voice input for captions.
+Integrate with a voice recognition library (e.g., Google Speech-to-Text) to capture audio and generate text.
+Topic Customization
+
+Offer a dropdown menu or a search bar to allow users to select a topic (e.g., "midterm week", "career transition") before generating the meme.
+Include a "Save & Share" button to save the generated caption and topic for future use.
+Multilingual Support
+
+Add support for multiple languages (e.g., English, Spanish, French) to cater to a broader user base.
+Architecture Optimization
+Efficient Model Selection
+
+Optimize the BLIP model for faster inference (e.g., use a more efficient pre-trained model or a hybrid architecture).
+Implement a fallback mechanism for LLMs (e.g., Qwen3-0.6B) if BLIP fails to produce a caption, ensuring reliability.
+Scalable Infrastructure
+
+Use a cloud-based model (e.g., AWS, Azure) for LLMs to ensure scalability and reduce latency.
+Integrate with a serverless architecture for automatic scaling based on user traffic.
+Real-Time Processing
+
+Improve BLIP performance by using a more optimized model or parallel processing for faster image captioning.
+User Experience
+Intuitive Interface
+
+Design a clean, drag-and-drop interface for uploading the photo and selecting the voice and topic.
+Include a "Start" button to immediately generate the meme.
+Enhanced Voice Selection
+
+Allow users to choose a voice (e.g., "Professor Energy", "Dad Joke") and adjust the caption dynamically.
+Add a voice-to-text feature to capture and generate captions directly from voice.
+Responsive Design
+
+Ensure the app works seamlessly on mobile and desktop, with a responsive layout.
+By refining these areas, the app can become more versatile, efficient, and user-friendly.
 
 ## i. Comparison of the two responses [Human only]
 
