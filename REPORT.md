@@ -117,7 +117,7 @@ answer). Prices for
 ## f. Comments and concerns
 
 - **Security:** the Space's `HF_TOKEN` and the Discord webhook are stored as repository
-  secrets, never in code. Logged-in viewers use their own OAuth token first.
+  secrets, never in code. Logged-in viewers use their own OAuth token.
 - **Privacy:** in Remote mode the image description (not the image itself) is sent to a
   third-party inference provider. Local-only mode keeps everything on the Space.
 - **Reliability and API dependence:** the remote path can fail from rate limits, outages,
