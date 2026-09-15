@@ -18,69 +18,25 @@ short_description: Meme captions from any image, via remote or local LLM.
 Meme caption generator for **DS/CS553 Case Study 1**. Upload an image, pick a voice, and get
 work-safe captions burned into the image.
 
-## Architecture
+## How it works
 
-One product, two interchangeable generation paths. Both take the same image and return the
-same thing; only the text-generation step differs, which makes the remote-vs-local
-comparison in the report a single-variable experiment.
+BLIP describes the image locally, then an LLM writes the captions:
 
-```
-                                    ┌─ remote: openai/gpt-oss-20b  ──┐
-image ──> BLIP (local, always) ──>  │  (InferenceClient)             │ ──> captions ──> PIL render
-          scene description         └─ local:  Qwen/Qwen3-0.6B ──────┘
-                                       (on this Space's ZeroGPU)
-```
+| Step | Model | Runs |
+|---|---|---|
+| Vision | `Salesforce/blip-image-captioning-base` | Local |
+| Captions (remote) | `openai/gpt-oss-20b` | Hugging Face Inference API |
+| Captions (local) | `Qwen/Qwen3-0.6B` | Local (ZeroGPU) |
 
-| Component | Model | Where it runs | Serves |
-|---|---|---|---|
-| Vision | `Salesforce/blip-image-captioning-base` | Local (ZeroGPU) | Both paths |
-| Text, remote | `openai/gpt-oss-20b` | Remote, `huggingface_hub.InferenceClient` | Deliverable 1 |
-| Text, local | `Qwen/Qwen3-0.6B` | Local (ZeroGPU) | Deliverables 2 and 6 |
+The **Routing** setting picks the path:
 
-The assignment permits this split: *"the locally executed approach may use either an LLM or
-another appropriate machine learning model."* In **Local only** mode no network call is made
-at all.
+- **Auto** (default): remote, falls back to local on any failure
+- **Remote only**: no fallback, errors are shown
+- **Local only**: no API calls
 
-## Routing and failover (extra credit)
+The status panel shows which model served each request.
 
-The **Routing** control under *Generation settings* selects:
-
-- **Auto (remote, fail over to local)** — default. Tries the remote LLM, and on any failure
-  automatically serves the request from the local model instead.
-- **Remote only** — no failover, so a remote failure is visible rather than papered over.
-- **Local only (no API calls)** — nothing leaves the host.
-
-The status panel always names the model that actually served the request. Failures detected
-automatically: missing token, provider/HTTP error, timeout, rate limit, empty response, and
-unparseable response. To see failover for real, run the app locally without a Hugging Face
-token, or pick **Remote only** to see the raw error instead.
-
-**Trade-offs.** Failover trades consistency for availability: a request that fails over is
-served by a materially weaker model (Qwen3-0.6B vs. gpt-oss-20b), so caption quality and
-tone can shift mid-session without the user asking for that. It also masks a real remote
-outage as a normal response — fine for keeping a demo or product alive, less fine if a
-grader or user needs to know the remote API is actually down (which is why **Remote only**
-mode exists, to surface that failure instead of hiding it). On the upside, it needs no
-manual intervention, adds no network dependency of its own (the fallback is on-host), and
-costs nothing extra to run since the local model is already loaded for Deliverable 2.
-
-## Layout
-
-```
-app.py                   Gradio UI: Meme Factory, Model Lab, and Style Gallery tabs
-src/compute.py           ZeroGPU / CPU / CI hardware shim
-src/styles.py            Caption styles and shared prompt construction
-src/parsing.py           Shared response parsing for both paths
-src/local_vision.py      BLIP image captioning (local)
-src/remote_llm.py        Remote caption generation via the Inference API
-src/local_llm.py         Local caption generation with Qwen3
-src/router.py            Routing and failover (Deliverable 6)
-src/meme_render.py       Caption-to-image rendering
-scripts/compare_models.py  Batch remote-vs-local timing comparison for the report
-tests/                   pytest suite, runs with no model downloads
-```
-
-## Running locally
+## Run locally
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
@@ -93,39 +49,10 @@ python app.py
 
 ```bash
 pip install -r requirements-ci.txt
-pytest -q --cov=src --cov-report=term-missing
+pytest -q --cov=src
 ```
 
-Every model call is monkeypatched, so the suite needs neither a GPU nor a model download and
-runs in under a second. `requirements-ci.txt` deliberately omits torch and transformers;
-`src/` imports them lazily inside functions so this stays true.
-
-CI also runs `ruff check .` as a lint gate (`pyproject.toml`; `example.py` is excluded since
-it's the unmodified class template).
-
-## Model comparison for the report
-
-The Model Lab tab compares both paths once, interactively. To collect averaged timings across
-several runs and styles for the report instead:
-
-```bash
-pip install -r requirements.txt
-python scripts/compare_models.py path/to/image.jpg --styles "Dad Joke" "Gen-Z Unhinged" --runs 3
-```
-
-Writes a per-call CSV (`comparison_results.csv` by default) and prints mean latency per path.
-Needs the full model stack, not the CI requirements.
-
-## Known limitations
-
-- The remote path depends on Hugging Face Inference Providers' availability and pricing for
-  `openai/gpt-oss-20b`; sustained heavy use can hit rate limits or cost more than expected.
-- The local path (`Qwen/Qwen3-0.6B`) is small enough to run without a dedicated GPU, but its
-  captions are noticeably less consistent in tone and formatting than the remote model's.
-- BLIP's scene description is a single, generic sentence; it can miss the specific detail
-  (a sign, an expression) that would make a caption actually funny.
-- No persistent caching: identical requests re-run the full pipeline every time, including
-  concurrent duplicate requests during a demo.
+Model calls are mocked, so no GPU or downloads are needed.
 
 ## Links
 

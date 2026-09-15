@@ -10,7 +10,6 @@ htmlcov/
 # Course material — must not be published to the public Space by the sync action
 CSDS 553 Case Study 1-3.pdf
 
-REPORT.md
 example.py
 
 # Claude Code local worktree/session state -- never meant to be committed
