@@ -15,6 +15,11 @@ short_description: Meme captions from any image, via remote or local LLM.
 
 # Meme Creator
 
+- Space: https://huggingface.co/spaces/minh-hahaha/CaseStudy1
+- GitHub: https://github.com/minh-hahaha/CaseStudy1
+- Demo: https://youtu.be/CZx28BOT-jk
+- [CITATIONS.md](CITATIONS.md)
+
 Meme caption generator for **DS/CS553 Case Study 1**. Upload an image, pick a voice, and get
 work-safe captions burned into the image.
 
@@ -54,9 +59,3 @@ pytest -q --cov=src
 
 Model calls are mocked, so no GPU or downloads are needed.
 
-## Links
-
-- Space: https://huggingface.co/spaces/minh-hahaha/CaseStudy1
-- GitHub: https://github.com/minh-hahaha/CaseStudy1
-- Demo: https://youtu.be/CZx28BOT-jk
-- [CITATIONS.md](CITATIONS.md)
