@@ -401,5 +401,5 @@ with gr.Blocks(title="Meme Creator") as demo:
 
 
 if __name__ == "__main__":
-    # Gradio 6 moved `theme` and `css` off the Blocks constructor onto launch().
-    demo.launch(theme=gr.themes.Soft(), css=fancy_css)
+    # change this bc gradio is bound to a certain address inside the VM -> want to have host be able to access
+    demo.launch(server_name="0.0.0.0", server_port=7860, theme=gr.themes.Soft(), css=fancy_css)
