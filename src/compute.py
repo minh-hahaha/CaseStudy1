@@ -55,7 +55,7 @@ def get_device() -> str:
     Imports torch lazily, so this may only be called from inside a model
     loader — never at module import time.
     """
-    if is_zero_gpu():
+    if is_zero_gpu() and is_on_space():
         return "cuda"
 
     import torch
