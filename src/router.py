@@ -6,7 +6,7 @@ so the behaviour has exactly one place to be read, tested, and demonstrated.
 
 import time
 
-from . import local_llm, remote_llm
+from . import local_llm, remote_llm, monitor
 
 AUTO_MODE = "Auto (remote, fail over to local)"
 REMOTE_ONLY_MODE = "Remote only"
@@ -54,6 +54,10 @@ def make_captions(
     which model handled the request.
     """
     start = time.perf_counter()
+
+    if monitor.is_overloaded():
+        return _result([], "Capacity guard", start,
+                        "System is operating near capacity. Please try again in a moment.")
 
     if mode == LOCAL_ONLY_MODE:
         return _serve_locally(

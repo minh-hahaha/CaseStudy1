@@ -13,7 +13,7 @@ import time
 
 import gradio as gr
 
-from src import compute, local_llm, local_vision, remote_llm, router
+from src import compute, local_llm, local_vision, remote_llm, router, monitor
 from src.meme_render import render_meme
 from src.styles import DEFAULT_STYLE, STYLES
 
@@ -402,4 +402,5 @@ with gr.Blocks(title="Meme Creator") as demo:
 
 if __name__ == "__main__":
     # change this bc gradio is bound to a certain address inside the VM -> want to have host be able to access
+    monitor.start()
     demo.launch(server_name="0.0.0.0", server_port=7860, theme=gr.themes.Soft(), css=fancy_css)
