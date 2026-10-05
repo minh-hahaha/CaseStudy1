@@ -55,20 +55,140 @@ In Case Study 1 we built both products into one Gradio app (`app.py`, "Meme Crea
 
 **Result**
 
-Both products work on the VM at `http://paffenroth-23.dyn.wpi.edu:8007`. Screenshots: TODO (2a with Routing = remote, 2b with Routing = local). Right now the app runs in the foreground of an SSH session, so it stops when we log out. Part 3 is where we automate deploying it and bringing it back up.
+Both products work on the VM at `http://paffenroth-23.dyn.wpi.edu:8007`.  Right now the app runs in the foreground of an SSH session, so it stops when we log out. Part 3 is where we automate deploying it and bringing it back up.
 
 ## d. Automated Recovery
 
-TODO after 3a to 3c: the deploy script, the recovery checker on linux.wpi.edu, how failures get detected, the resilience tests and what happened, how well it worked, limitations, and what we'd improve.
+The deploy script
 
-## e. Additional Insights, Challenges, and Future Improvements
+Deployment is split into two scripts so a wiped VM can go from bare to running without us typing anything by hand.
 
-The biggest thing we learned so far is to check the Python version, not just the packages. The old venv looked fine, and `pip check` even passed, but only because nothing was installed yet. The real problem didn't show up until torch was actually imported. We also learned that code written for one platform can break quietly on another. The "if `spaces` imports, there's a GPU" shortcut made total sense on Hugging Face and was just wrong on our VM. Keeping the token, the venv and the model cache outside the repo turned out to be a good call, since it means we can pull or re-clone the code without worrying about losing anything.
+deploy_first_part.sh does the key lockdown from part (b), then clones our repo (minh-hahaha/CaseStudy1, branch casestudy2) and copies it onto the VM as ~/CaseStudy1.
+deploy_second_part.sh finishes the job: it copies the secrets file up to ~/.cs553.env, installs python3-venv, builds the venv at ~/venv, installs the requirements, and launches the app detached with start_app.sh. The launch is wrapped so it survives the SSH session closing.
 
-Things we'd like to improve: download the models during deployment so the first person to use the app after a fresh install doesn't have to wait, pin exact package versions (including CPU torch) so rebuilds are repeatable, and clean up the transformers warnings in `src/local_llm.py`.
+Rerunning both in order rebuilds the whole deployment after a wipe.
 
-TODO: add recovery and monitoring reflections after part 3.
+Why the checker runs on linux.wpi.edu
 
-## f. Security and Automation Review (LLM)
+The watchdog can't live on the VM it is supposed to rescue: if the VM goes down, a watchdog on that same VM goes down with it. GitHub Actions can't help either, because the Actions runners can't reach the class VMs on the WPI network. So we put the checker on linux.wpi.edu, a WPI login server that is always up and can reach our VM, and run it on a cron schedule. Our script is recover.sh, and the cron line runs it every two minutes:
 
-TODO once the scripts are done. Plan: give our deployment and recovery scripts to an LLM, with all keys, tokens and hostnames removed, and record the model, the full prompt and the full response. Then summarize the most useful suggestions and which ones we'd actually implement.
+*/2 * * * * /home/mtjeronimo/cs2/recover.sh
+
+How failures get detected
+
+We first tried having recover.sh check the app by requesting http://paffenroth-23.dyn.wpi.edu:8007 from linux.wpi.edu, but that always failed (HTTP 000) because WPI blocks that cross-host request. So the check runs on the VM instead, over SSH: recover.sh logs into the VM with a dedicated recovery key and tests whether anything is listening on port 7860 (using a bash /dev/tcp connection test). This also cleanly separates "the VM is unreachable" (SSH itself fails) from "the VM is up but the app died" (SSH works, port 7860 is closed).
+
+The recovery key is a separate key with no passphrase, authorized on the VM. We had to make it passphrase-less because cron runs unattended, with no one there to type a passphrase. The private key lives in a chmod 700 folder on our personal linux.wpi.edu account, chmod 600. Its public key is also in our pubkeys/ folder, so deploy_first_part.sh re-authorizes it automatically after a wipe.
+
+The logic is three steps: if SSH fails, the VM is off or wiped, so it logs that a manual redeploy is needed; if SSH works but the app isn't listening, it restarts the app; if the app is listening, it logs that everything is healthy and exits.
+
+Resilience test and what happened
+
+We tested by killing the app on the VM (pkill -f app.py) and watching the recovery log on linux.wpi.edu. Our first version did not work: the log showed the outage being detected but the app staying down.
+
+15:24  OK: app healthy (listening on 7860)
+15:26  DOWN: app not listening on 7860 - restarting
+15:26  STILL DOWN after restart
+15:28  DOWN ... STILL DOWN
+15:30  DOWN ... STILL DOWN
+
+The problem was in how the restart launched the app. The restart command backgrounded the launch inside the SSH session (setsid start_app.sh &), but because the SSH connection closed right after, the app was killed along with the session before it could finish starting. We fixed it by wrapping the launch in a detached subshell and giving it a moment to detach before the SSH session returns:
+
+(setsid bash ~/CaseStudy1/start_app.sh > ~/CaseStudy1/log.txt 2>&1 < /dev/null &); sleep 3
+
+After that change, the next scheduled run recovered the app on its own:
+
+15:32  DOWN: app not listening on 7860 - restarting
+15:32  RECOVERED: app restarted (now listening on 7860)
+15:34  OK: app healthy (listening on 7860)
+15:36  OK: app healthy (listening on 7860)
+
+
+No manual login was needed. We killed the app, and within one two-minute cron cycle the watchdog detected it and brought it back.
+
+How well it worked, limitations, and improvements
+
+It works reliably for the failure we most expected: the app process dying while the VM stays up. The three-step design also means an unreachable VM is at least detected and logged rather than silently ignored.
+
+Limitations:
+
+Detection latency. With a two-minute cron cadence, the app can be down for up to two minutes before recovery starts. Fine for a class project, too slow for real traffic.
+The passphrase-less recovery key is the main security tradeoff. A key with no passphrase sitting on a shared server is a real risk. We limited the blast radius by keeping it in a locked-down folder, giving it 600 permissions, and relying on the fact that the VM itself is disposable, but a passwordless key is still a passwordless key.
+Full-wipe recovery is not automated. recover.sh restarts a crashed app, but it does not by itself rebuild a VM that was wiped back to the class key. Doing that automatically would mean staging the shared class key on linux.wpi.edu too, which we chose not to do on a multi-user server. For now, a wipe means rerunning the two deploy scripts, which are staged there and ready.
+
+What we'd improve: run the app under systemd so the operating system restarts it instantly instead of waiting on a two-minute cron, lower the cron interval or switch to an event-based trigger, restrict the recovery key with a forced command in authorized_keys so it can only do exactly what the watchdog needs, and automate the full redeploy path for a wiped VM.
+
+e. Additional Insights, Challenges, and Future Improvements
+
+The biggest thing we learned early on is to check the Python version, not just the packages. The old venv looked fine, and pip check even passed, but only because nothing was installed yet. The real problem didn't show up until torch was actually imported. We also learned that code written for one platform can break quietly on another. The "if spaces imports, there's a GPU" shortcut made total sense on Hugging Face and was just wrong on our VM. Keeping the token, the venv and the model cache outside the repo turned out to be a good call, since it means we can pull or re-clone the code without worrying about losing anything.
+
+Part 3 taught us a different lesson: automating something is not the same as automating it correctly. Our recovery watchdog detected failures perfectly from the first try, but the recovery itself quietly failed for three cycles because the restarted app was being killed with the SSH session that launched it. The fix was small (detach the process before the session closes), but we only found it because we watched the log through a real failure instead of assuming it worked. A lot of the WSL friction on the laptop side taught us the same thing in miniature: file permissions on the Windows mount don't behave like Linux permissions, so SSH kept rejecting keys until we moved them into the Linux filesystem.
+
+Things we'd like to improve: download the models during deployment so the first person to use the app after a fresh install doesn't have to wait, pin exact package versions (including CPU torch) so rebuilds are repeatable, clean up the transformers warnings in src/local_llm.py, and move the app to a systemd service so both the launch and the recovery are handled by the operating system rather than ad-hoc background processes.
+
+f. Security and Automation Review (LLM)
+
+We gave our deployment and recovery scripts to an LLM and asked it to review them for security, reliability, and anything we could improve. All real key material, tokens, and the webhook URL were already kept in separate files, so the scripts we shared contained only file paths and hostnames, no secret values.
+
+Model: Claude (Anthropic, Opus 4.8)
+
+Prompt:
+
+Here are three bash scripts for deploying and auto-recovering a Gradio app on a disposable Ubuntu class VM: deploy_first_part.sh (replaces the shared SSH key with our own and copies the code), deploy_second_part.sh (builds the venv, installs deps, launches the app), and recover.sh (runs on a separate always-on server via cron, checks the app over SSH, and restarts it if it's down). Please review them for security, reliability, and improvements. Point out the most important issues first. No secret values are included, only file paths and hostnames.
+
+Response:
+
+"Review of deployment and recovery scripts
+What's done well
+The lockdown can't brick the VM. deploy_first_part.sh adds your keys and verifies your own key logs in before it ever removes the shared class key, and it re-checks at the end that the class key is rejected. That ordering is the single most important safety property here, and it's correct.
+Secrets are handled sensibly. The token lives in ~/.cs553.env, chmod 600, outside the git repo, and is loaded at runtime rather than hard-coded. No secret values appear in any script.
+Keys are used explicitly. Every ssh/scp passes -i with IdentitiesOnly=yes and BatchMode=yes, so the intended key is always used and the scripts never hang on a prompt.
+The watchdog distinguishes failure modes. Checking port 7860 on the VM's own loopback over SSH correctly separates "VM unreachable" from "VM up, app dead," which is better than a single external ping.
+Most important issues (highest priority first)
+
+1. The passphrase-less recovery key is the biggest risk.
+recover.sh authenticates with a key that has no passphrase, sitting on linux.wpi.edu, a shared multi-user server. Anyone who can read that file gets student-admin on your VM. chmod 600 plus a chmod 700 parent folder is the right start, but it does not protect you from a server administrator or a root-level compromise. Reduce the blast radius by restricting the key on the VM side, in ~/.ssh/authorized_keys:
+
+from="<linux.wpi.edu host>",command="<only the restart command>",no-port-forwarding,no-pty ssh-ed25519 AAAA...
+
+That way, even if the key leaks, it can only run your one recovery action, only from that one host.
+
+2. Host-key verification is disabled everywhere.
+All three scripts use StrictHostKeyChecking=no (and the deploy scripts also UserKnownHostsFile=/dev/null). This removes any protection against a man-in-the-middle on the SSH connection. It's a reasonable choice for a VM whose host key changes on every wipe, but it is a real weakening, so it should be a documented decision, and worth pinning the host key once the VM is stable.
+
+3. deploy_first_part.sh has no set -euo pipefail.
+It starts with #! /bin/bash and no error-handling flags, so if a step in the middle fails (a failed scp, a network blip), the script keeps going and can leave authorized_keys in a half-applied state. The fresh-machine branch is where this matters most, since it's actively changing who can log in. Add set -euo pipefail and/or check the exit status of the key-install and scp steps before proceeding. (Your deploy_second_part.sh and recover.sh already do this.)
+
+Reliability issues
+
+4. pkill -f app.py is too broad.
+It kills any process whose command line contains "app.py," which could catch an editor, a grep, or an unrelated process. Track the real PID in a pidfile when you launch, and kill that specific PID instead.
+
+5. The watchdog has no backoff or escalation.
+If start_app.sh is itself broken (bad env file, missing venv), recover.sh will restart it, see it's still down, and repeat every two minutes forever, with no alert that recovery is failing. Add a consecutive-failure counter and send a Discord alert after, say, 3 failed restarts, so a human knows automatic recovery has given up.
+
+6. The health check is a port-open test, not a real request.
+</dev/tcp/127.0.0.1/7860 only confirms something is listening. An app that has hung but still holds the port would read as healthy. A lightweight HTTP request to a known endpoint would catch that case.
+
+7. No log rotation.
+recover.log and the app's log.txt grow without bound. Add simple truncation or rotation, especially now that log.txt lives inside the repo folder.
+
+Lower priority
+Config is duplicated. deploy_first_part.sh hard-codes the port, host, and key path instead of sourcing config.sh like connect.sh does. Centralizing them would prevent the three scripts from drifting.
+Confirm .cs553.env and log.txt are gitignored, so a secret or a noisy log never gets committed.
+Pin exact dependency versions (including the CPU torch wheel) for repeatable rebuilds.
+Consider a systemd service instead of setsid/nohup, so the OS supervises the process and restarts it instantly rather than waiting on a two-minute cron.
+Bottom line
+
+The security-critical path (the key lockdown) is well designed and fail-safe. The weakest points are operational: the passphrase-less key on a shared host, disabled host-key checking, and the lack of set -e in the one script that changes login access. Fixing #1–#3 would close the real gaps; #4–#7 would make the automation trustworthy enough to leave running unattended."
+
+Which suggestions we'd implement. We would do the quick, high-value ones for sure: confirm .cs553.env and log.txt are gitignored, add log rotation, and switch pkill to a pidfile. We think the forced-command restriction on the recovery key (#1) is the most valuable security fix and would do it next, since it directly addresses the one real weakness in our design. Pinning versions and moving to systemd are the right long-term calls and are already on our Part (e) improvement list. We would hold off on pinning the host key (#2) only because our VM gets wiped and its host key changes, which would just cause failed logins.
+
+g. Resource Monitoring and Adaptive Response (Extra Credit)
+
+We added resource monitoring with an automatic reaction, in src/monitor.py.
+
+Threshold used. 80% for CPU or RAM. For the demo we set CPU_THRESHOLD=5 in ~/.cs553.env so it trips immediately; in normal operation it is 80%. Recovery uses a margin, so the system only clears the overloaded state once usage drops below 70% (threshold minus a 10-point margin), which stops it from flapping on and off right at the line.
+How usage is measured. A background daemon thread samples CPU and RAM every 10 seconds with psutil (psutil.cpu_percent and psutil.virtual_memory().percent). psutil was already installed as a dependency of accelerate, so this added no new packages.
+What automated action is taken. The monitor does two things when usage crosses the threshold. First, it sends a Discord webhook alert to our team channel (the same webhook idea from Case Study 1; we had to set a normal User-Agent header because Discord's edge blocks the default one). Second, it flips an overloaded flag that the request router reads. Because all of our routing lives in src/router.py, this was a one-place change: when the flag is set, make_captions sheds load by immediately returning an "operating near capacity" message instead of running the heavy vision and caption models on an already-stressed VM.
+How it returns to normal. When usage falls back below 70%, the monitor sends a recovery alert to Discord and clears the flag, and the app starts serving captions normally again, with no manual intervention.
