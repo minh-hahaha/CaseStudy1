@@ -1,4 +1,5 @@
 # DS/CS553 Case Study 2 Report
+https://github.com/minh-hahaha/CaseStudy1/tree/casestudy2
 
 ## a. Group Members' Names
 
