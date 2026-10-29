@@ -1,0 +1,8 @@
+# Runtime deps for the Case Study 3 Docker image.
+# torch is NOT listed: the Dockerfile installs the CPU-only build separately.
+# `spaces` and `accelerate` are left out: they only matter on Hugging Face.
+gradio[oauth]==6.26.0
+httpx2
+transformers>=4.51
+pillow>=10.1
+huggingface_hub

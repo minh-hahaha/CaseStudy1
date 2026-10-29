@@ -7,7 +7,7 @@ executed LLM, with automatic failover between them.
 
 Structure, CSS and the OAuth login flow follow the class example (example.py).
 """
-
+import os
 import random
 import time
 
@@ -22,6 +22,25 @@ CAPTION_TEMPERATURE = 0.9
 UPLOAD_PROMPT = "Upload an image first."
 NO_SCENE_YET = "Generate captions at least once before rerolling."
 HISTORY_LIMIT = 8
+
+# Case Study 3: one image, two containers. MEME_PRODUCT picks which product
+# this process serves; "both" keeps the original Space behaviour.
+PRODUCT_MODES = {
+    "api": [router.AUTO_MODE, router.REMOTE_ONLY_MODE],
+    "local": [router.LOCAL_ONLY_MODE],
+    "both": router.MODES,
+}
+PRODUCT_TITLES = {
+    "api": "Meme Creator · API product",
+    "local": "Meme Creator · Local product",
+    "both": "Meme Creator",
+}
+PRODUCT = os.environ.get("MEME_PRODUCT", "both").strip().lower()
+if PRODUCT not in PRODUCT_MODES:
+    raise ValueError(f"MEME_PRODUCT must be one of {sorted(PRODUCT_MODES)}, got {PRODUCT!r}")
+AVAILABLE_MODES = PRODUCT_MODES[PRODUCT]
+
+
 SURPRISE_TOPICS = [
     "",
     "finals week",
@@ -272,7 +291,7 @@ def run_style_gallery(image, topic, mode, hf_token: gr.OAuthToken | None = None)
     return header, items
 
 
-with gr.Blocks(title="Meme Creator") as demo:
+with gr.Blocks(title="PRODUCT_TITLE[PRODUCT]") as demo:
     with gr.Sidebar():
         # Gradio's LoginButton raises at construction time outside a Space
         # unless the machine already holds a token, so gate it on SPACE_ID and
@@ -286,7 +305,7 @@ with gr.Blocks(title="Meme Creator") as demo:
             elem_id="model-note",
         )
 
-    gr.Markdown("# Meme Creator", elem_id="app-title")
+    gr.Markdown(f"# {PRODUCT_TITLES[PRODUCT]}", elem_id="app-title")
     gr.Markdown(
         "Drop in an image, pick a voice, get class-ready meme captions. "
         "Vision runs locally on this Space. Captions come from a remote LLM, "
@@ -311,7 +330,7 @@ with gr.Blocks(title="Meme Creator") as demo:
                 with gr.Accordion("Generation settings", open=False):
                     n_in = gr.Slider(1, 6, value=3, step=1, label="Captions")
                     mode_in = gr.Radio(
-                        router.MODES, value=router.AUTO_MODE, label="Routing"
+                        AVAILABLE_MODES, value=AVAILABLE_MODES[0], label="Routing"
                     )
                 with gr.Row():
                     go = gr.Button("Generate captions", variant="primary")
@@ -350,7 +369,7 @@ with gr.Blocks(title="Meme Creator") as demo:
             [history_state, history_gallery],
         )
 
-    with gr.Tab("Model Lab"):
+    with gr.Tab("Model Lab", visible=PRODUCT == "both"):
         with gr.Column(elem_id="lab-container"):
             gr.Markdown(
                 "Same image, same scene description, same prompt, both models. "
