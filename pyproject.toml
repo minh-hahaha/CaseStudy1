@@ -1,7 +1,7 @@
 [tool.ruff]
 line-length = 92
 target-version = "py312"
-# example.py is the unmodified class-provided template (see CITATIONS.md) —
+# example.py is the unmodified class-provided template (see documentation/CITATIONS.md) —
 # not our code to lint or reformat.
 extend-exclude = ["example.py"]
 

@@ -37,7 +37,9 @@ PRODUCT_TITLES = {
 }
 PRODUCT = os.environ.get("MEME_PRODUCT", "both").strip().lower()
 if PRODUCT not in PRODUCT_MODES:
-    raise ValueError(f"MEME_PRODUCT must be one of {sorted(PRODUCT_MODES)}, got {PRODUCT!r}")
+    raise ValueError(
+        f"MEME_PRODUCT must be one of {sorted(PRODUCT_MODES)}, got {PRODUCT!r}"
+    )
 AVAILABLE_MODES = PRODUCT_MODES[PRODUCT]
 
 
