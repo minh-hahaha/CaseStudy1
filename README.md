@@ -59,3 +59,21 @@ pytest -q --cov=src
 
 Model calls are mocked, so no GPU or downloads are needed.
 
+
+## Case Study 3: Docker deployment and monitoring
+
+On the class VM, from the repo root:
+
+```bash
+./deploy.sh        # build the image and (re)deploy all 7 containers
+./deploy.sh urls   # print the current public URLs and container IPs
+```
+
+`deploy.sh` prompts for the Hugging Face token, the ngrok authtoken and (first run only)
+a Grafana admin password. It runs the two products, Prometheus, Grafana and three tunnels
+on the `group7_net` Docker network, using VM ports 4700-4707.
+
+- `monitoring/prometheus.yml`: scrapes app metrics (:8000) and node exporters (:9100)
+- `monitoring/grafana_dashboard.json`: 9-panel dashboard; import it in Grafana
+  (Dashboards → New → Import) and pick the Prometheus data source
+  (`http://group7_prometheus:9090`)
