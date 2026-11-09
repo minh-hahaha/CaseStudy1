@@ -18,3 +18,4 @@ accelerate
 # instead of raising, so this floor prevents a quiet regression.
 pillow>=10.1
 huggingface_hub
+prometheus-client

@@ -13,7 +13,7 @@ import time
 
 import gradio as gr
 
-from src import compute, local_llm, local_vision, remote_llm, router
+from src import compute, local_llm, local_vision, metrics, remote_llm, router
 from src.meme_render import render_meme
 from src.styles import DEFAULT_STYLE, STYLES
 
@@ -93,9 +93,17 @@ fancy_css = """
 
 def _describe(image) -> tuple[str, float]:
     """Run local BLIP and report how long it took."""
+    metrics.observe_image(image)
     start = time.perf_counter()
     scene = local_vision.describe_image(image)
-    return scene, time.perf_counter() - start
+    elapsed = time.perf_counter() - start
+    metrics.VISION_SECONDS.observe(elapsed)
+    return scene, elapsed
+
+
+def _no_choices(update) -> bool:
+    """True when a caption-picker update carries no captions."""
+    return not (update or {}).get("choices")
 
 
 def _token_value(hf_token) -> str | None:
@@ -121,7 +129,7 @@ def _status_block(
         bits.append(f"**Note:** {note}")
     return "\n\n".join(bits)
 
-
+@metrics.track("generate", failed=lambda result: _no_choices(result[2]))
 def run_factory(
     image,
     style,
@@ -156,7 +164,7 @@ def run_factory(
         scene,
     )
 
-
+@metrics.track("reroll", failed=lambda result: _no_choices(result[1]))
 def reroll_captions(
     scene,
     style,
@@ -190,7 +198,7 @@ def random_settings():
     """Pick a random style and topic for the Surprise Me button."""
     return random.choice(list(STYLES)), random.choice(SURPRISE_TOPICS)
 
-
+@metrics.track("render", failed=lambda result: result is None)
 def burn_caption(image, caption, placement):
     """Burn the chosen caption onto the image at the chosen edge.
 
@@ -221,7 +229,7 @@ def add_to_history(meme, caption, history):
 def _as_bullets(captions) -> str:
     return "\n".join(f"- {caption}" for caption in captions)
 
-
+@metrics.track("render", failed=lambda result: result is None)
 def run_bakeoff(image, style, topic, hf_token: gr.OAuthToken | None = None):
     """Run both text paths on one identical scene, for report item 4d."""
     if image is None:
@@ -261,7 +269,7 @@ def run_bakeoff(image, style, topic, hf_token: gr.OAuthToken | None = None):
     )
     return header, remote_out, local_out
 
-
+@metrics.track("style_gallery")
 def run_style_gallery(image, topic, mode, hf_token: gr.OAuthToken | None = None):
     """Render one meme per style on the same image, for a one-click voice tour."""
     if image is None:
@@ -293,7 +301,7 @@ def run_style_gallery(image, topic, mode, hf_token: gr.OAuthToken | None = None)
     return header, items
 
 
-with gr.Blocks(title="PRODUCT_TITLE[PRODUCT]") as demo:
+with gr.Blocks(title="Meme Creator") as demo:
     with gr.Sidebar():
         # Gradio's LoginButton raises at construction time outside a Space
         # unless the machine already holds a token, so gate it on SPACE_ID and
@@ -422,5 +430,7 @@ with gr.Blocks(title="PRODUCT_TITLE[PRODUCT]") as demo:
 
 
 if __name__ == "__main__":
+    metrics.start_metrics_server()
+    print(f"[metrics] serving Prometheus metrics on :{metrics.METRICS_PORT}/metrics")
     # Gradio 6 moved `theme` and `css` off the Blocks constructor onto launch().
     demo.launch(theme=gr.themes.Soft(), css=fancy_css)

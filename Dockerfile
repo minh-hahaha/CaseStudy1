@@ -29,6 +29,6 @@ ENV GRADIO_SERVER_NAME=0.0.0.0 \
     HF_HOME=/opt/hf-cache \
     MEME_PRODUCT=both
 
-EXPOSE 7860 9100
+EXPOSE 7860 8000 9100
 
 ENTRYPOINT ["sh", "/usr/local/bin/entrypoint.sh"]

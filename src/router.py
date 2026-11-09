@@ -6,7 +6,7 @@ so the behaviour has exactly one place to be read, tested, and demonstrated.
 
 import time
 
-from . import local_llm, remote_llm
+from . import local_llm, metrics, remote_llm
 
 AUTO_MODE = "Auto (remote, fail over to local)"
 REMOTE_ONLY_MODE = "Remote only"
@@ -30,13 +30,15 @@ def _result(captions, source, start, note=""):
 def _serve_locally(scene, style, n, temperature, topic, start, note):
     """Run the local path, reporting a readable note if it also fails."""
     print("[MODE] local")
+    attempt = time.perf_counter()
     try:
         captions = local_llm.generate_captions(scene, style, n, temperature, topic)
     except local_llm.LocalCaptionError as exc:
+        metrics.observe_caption("local", "error", time.perf_counter() - attempt, 0)
         reasons = [note, f"Local path also failed: {exc}"]
         return _result([], LOCAL_LABEL, start, " — ".join(r for r in reasons if r))
+    metrics.observe_caption("local", "ok", time.perf_counter() - attempt, len(captions))
     return _result(captions, LOCAL_LABEL, start, note)
-
 
 def make_captions(
     scene: str,
@@ -61,18 +63,23 @@ def make_captions(
             "Local-only mode selected. No API call was made.",
         )
 
+    attempt = time.perf_counter()
     try:
         print("[MODE] api")
         captions = remote_llm.generate_captions(
             scene, style, n, temperature, topic=topic, token=token
         )
+        elapsed = time.perf_counter() - attempt
+        metrics.observe_caption("remote", "ok", elapsed, len(captions))
         return _result(captions, REMOTE_LABEL, start)
     except remote_llm.RemoteCaptionError as exc:
+        metrics.observe_caption("remote", "error", time.perf_counter() - attempt, 0)
         if mode == REMOTE_ONLY_MODE:
             return _result(
                 [], REMOTE_LABEL, start,
                 f"Remote call failed and failover is disabled. {exc}",
             )
+        metrics.FAILOVERS.inc()
         return _serve_locally(
             scene, style, n, temperature, topic, start,
             f"Remote path failed, served locally instead. Reason: {exc}",

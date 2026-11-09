@@ -5,3 +5,4 @@ pytest-cov
 pillow>=10.1
 huggingface_hub
 ruff
+prometheus-client
